@@ -16,7 +16,7 @@ import {
   X,
   Flame
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { NotificationBellPopover } from '@/components/notifications/NotificationBellPopover'
 
@@ -24,9 +24,18 @@ export function Navbar() {
   const pathname = usePathname()
   const { user, role, isStudent, isTeacher, isAdmin } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Never render during SSR to prevent navbar appearing on initial load of login page
+  if (!mounted) return null
 
   // Hide navbar on auth routes, landing page (login), and portal dashboards
   const hideNavbar =
+    !pathname ||
     pathname === '/' ||
     pathname.startsWith('/login') ||
     pathname.startsWith('/register') ||
