@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Education LMS — Next.js 16 + Supabase',
+  title: 'Education LMS',
   description: 'Enterprise-grade Learning Management System with Student, Teacher, and Admin Portals.',
 }
 
