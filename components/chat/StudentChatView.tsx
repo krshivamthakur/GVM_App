@@ -12,7 +12,6 @@ import {
   Paperclip,
   Smile,
   ShieldCheck,
-  Settings2,
   Sparkles,
   GraduationCap,
   Circle,
@@ -443,13 +442,6 @@ export default function StudentChatView() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setShowConfigModal(true)}
-              title="CometChat Settings"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <Settings2 className="h-4 w-4" />
-            </button>
           </div>
         </div>
 
