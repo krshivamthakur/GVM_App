@@ -299,56 +299,6 @@ export default function StudentChatView() {
 
   return (
     <div className="flex flex-col h-[calc(100dvh-13.5rem)] sm:h-[calc(100vh-10rem)] min-h-[520px] rounded-xl border border-border bg-card shadow-xs overflow-hidden">
-      {/* Top Banner: CometChat Connection State */}
-      <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-muted/40 border-b border-border text-xs shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span
-              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                connectionStatus === 'live' ? 'bg-emerald-400' : 'bg-amber-400'
-              }`}
-            />
-            <span
-              className={`relative inline-flex rounded-full h-2 w-2 ${
-                connectionStatus === 'live' ? 'bg-emerald-500' : 'bg-amber-500'
-              }`}
-            />
-          </span>
-          <span className="text-foreground font-semibold text-xs sm:text-sm shrink-0">CometChat Engine</span>
-
-          <span className="hidden sm:inline-block text-muted-foreground">•</span>
-
-          <span className="text-muted-foreground truncate text-[11px] sm:text-xs">
-            {connectionStatus === 'live'
-              ? 'Connected to Live Cloud'
-              : 'Interactive Student Workspace (Demo)'}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {connectionStatus !== 'live' && (
-            <button
-              onClick={() => setShowConfigModal(true)}
-              className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-            >
-              <Key className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              <span className="hidden sm:inline">Configure Keys</span>
-              <span className="sm:hidden">Keys</span>
-            </button>
-          )}
-
-          <a
-            href="https://www.cometchat.com/docs"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
-          >
-            <span>Docs</span>
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
-      </div>
-
       {/* Main Chat Workspace Grid */}
       <div className="flex flex-1 min-h-0 lg:divide-x divide-border overflow-hidden">
         {/* Left Sidebar: Conversations & Contacts */}
