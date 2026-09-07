@@ -9,10 +9,7 @@ import { CourseFormData } from '@/types/course'
 export async function getCourses(category?: string, search?: string): Promise<Course[]> {
   try {
     const supabase = createAdminClient()
-    let query = supabase
-      .from('courses')
-      .select('*, teacher:Profile(*), chapters:chapters(*, lectures:lectures(*))')
-      .eq('status', 'published')
+    let query = supabase.from('courses').select('*').eq('status', 'published')
 
     if (category && category !== 'All') {
       query = query.ilike('category', `%${category}%`)
@@ -21,15 +18,36 @@ export async function getCourses(category?: string, search?: string): Promise<Co
       query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`)
     }
 
-    const { data, error } = await query
-    if (!error && data && data.length > 0) {
-      return data.map((c: any) => ({
-        ...c,
-        _count: {
-          enrollments: 0,
-          lectures: c.chapters?.flatMap((ch: any) => ch.lectures || []).length || 0
+    const { data: rawCourses, error } = await query
+    if (!error && rawCourses && rawCourses.length > 0) {
+      const courseIds = rawCourses.map((c) => c.id)
+      const teacherIds = [...new Set(rawCourses.map((c) => c.teacher_id).filter(Boolean))]
+
+      const [teachersRes, chaptersRes] = await Promise.all([
+        teacherIds.length > 0 ? supabase.from('Profile').select('*').in('id', teacherIds) : Promise.resolve({ data: [] }),
+        supabase.from('chapters').select('id, course_id').in('course_id', courseIds)
+      ])
+
+      const chIds = (chaptersRes.data || []).map((ch) => ch.id)
+      const { data: lecs } = chIds.length > 0
+        ? await supabase.from('lectures').select('id, chapter_id').in('chapter_id', chIds)
+        : { data: [] }
+
+      return rawCourses.map((c) => {
+        const t = (teachersRes.data || []).find((p) => p.id === c.teacher_id)
+        const chs = (chaptersRes.data || []).filter((ch) => ch.course_id === c.id)
+        const chIdsSet = new Set(chs.map((ch) => ch.id))
+        const lectureCount = (lecs || []).filter((l) => chIdsSet.has(l.chapter_id)).length
+
+        return {
+          ...c,
+          teacher: t || undefined,
+          _count: {
+            enrollments: 0,
+            lectures: lectureCount
+          }
         }
-      }))
+      })
     }
   } catch (err) {
     console.warn('Supabase getCourses fallback to local store:', err)
@@ -44,19 +62,37 @@ export async function getTeacherCourses(teacherId?: string): Promise<Course[]> {
 
   try {
     const supabase = createAdminClient()
-    const { data, error } = await supabase
+    const { data: rawCourses, error } = await supabase
       .from('courses')
-      .select('*, teacher:Profile(*), chapters:chapters(*, lectures:lectures(*))')
+      .select('*')
       .eq('teacher_id', targetId)
 
-    if (!error && data && data.length > 0) {
-      return data.map((c: any) => ({
-        ...c,
-        _count: {
-          enrollments: 0,
-          lectures: c.chapters?.flatMap((ch: any) => ch.lectures || []).length || 0
+    if (!error && rawCourses && rawCourses.length > 0) {
+      const courseIds = rawCourses.map((c) => c.id)
+      const [teacherRes, chaptersRes] = await Promise.all([
+        supabase.from('Profile').select('*').eq('id', targetId).maybeSingle(),
+        supabase.from('chapters').select('id, course_id').in('course_id', courseIds)
+      ])
+
+      const chIds = (chaptersRes.data || []).map((ch) => ch.id)
+      const { data: lecs } = chIds.length > 0
+        ? await supabase.from('lectures').select('id, chapter_id').in('chapter_id', chIds)
+        : { data: [] }
+
+      return rawCourses.map((c) => {
+        const chs = (chaptersRes.data || []).filter((ch) => ch.course_id === c.id)
+        const chIdsSet = new Set(chs.map((ch) => ch.id))
+        const lectureCount = (lecs || []).filter((l) => chIdsSet.has(l.chapter_id)).length
+
+        return {
+          ...c,
+          teacher: teacherRes.data || undefined,
+          _count: {
+            enrollments: 0,
+            lectures: lectureCount
+          }
         }
-      }))
+      })
     }
   } catch (err) {
     console.warn('Supabase getTeacherCourses fallback:', err)
@@ -68,18 +104,37 @@ export async function getTeacherCourses(teacherId?: string): Promise<Course[]> {
 export async function getAllCoursesAdmin(): Promise<Course[]> {
   try {
     const supabase = createAdminClient()
-    const { data, error } = await supabase
-      .from('courses')
-      .select('*, teacher:Profile(*), chapters:chapters(*, lectures:lectures(*))')
+    const { data: rawCourses, error } = await supabase.from('courses').select('*')
 
-    if (!error && data && data.length > 0) {
-      return data.map((c: any) => ({
-        ...c,
-        _count: {
-          enrollments: 0,
-          lectures: c.chapters?.flatMap((ch: any) => ch.lectures || []).length || 0
+    if (!error && rawCourses && rawCourses.length > 0) {
+      const courseIds = rawCourses.map((c) => c.id)
+      const teacherIds = [...new Set(rawCourses.map((c) => c.teacher_id).filter(Boolean))]
+
+      const [teachersRes, chaptersRes] = await Promise.all([
+        teacherIds.length > 0 ? supabase.from('Profile').select('*').in('id', teacherIds) : Promise.resolve({ data: [] }),
+        supabase.from('chapters').select('id, course_id').in('course_id', courseIds)
+      ])
+
+      const chIds = (chaptersRes.data || []).map((ch) => ch.id)
+      const { data: lecs } = chIds.length > 0
+        ? await supabase.from('lectures').select('id, chapter_id').in('chapter_id', chIds)
+        : { data: [] }
+
+      return rawCourses.map((c) => {
+        const t = (teachersRes.data || []).find((p) => p.id === c.teacher_id)
+        const chs = (chaptersRes.data || []).filter((ch) => ch.course_id === c.id)
+        const chIdsSet = new Set(chs.map((ch) => ch.id))
+        const lectureCount = (lecs || []).filter((l) => chIdsSet.has(l.chapter_id)).length
+
+        return {
+          ...c,
+          teacher: t || undefined,
+          _count: {
+            enrollments: 0,
+            lectures: lectureCount
+          }
         }
-      }))
+      })
     }
   } catch (err) {
     console.warn('Supabase getAllCoursesAdmin fallback:', err)
@@ -97,47 +152,61 @@ export async function getCourseById(
 
   try {
     const supabase = createAdminClient()
-    const { data: course, error } = await supabase
+    const { data: rawCourse } = await supabase
       .from('courses')
-      .select(`
-        *,
-        teacher:Profile(*),
-        chapters:chapters(*, lectures:lectures(*, notes:notes(*), progress:lecture_progress(*)))
-      `)
+      .select('*')
       .eq('id', courseId)
       .maybeSingle()
 
-    if (!error && course) {
-      // Check student enrollment status
-      const { data: enr } = targetStudentId
-        ? await supabase
-            .from('enrollments')
-            .select('id')
-            .eq('course_id', courseId)
-            .eq('student_id', targetStudentId)
-            .maybeSingle()
-        : { data: null }
+    if (rawCourse) {
+      const [teacherRes, chaptersRes, enrRes] = await Promise.all([
+        supabase.from('Profile').select('*').eq('id', rawCourse.teacher_id).maybeSingle(),
+        supabase.from('chapters').select('*').eq('course_id', courseId).order('chapter_order'),
+        targetStudentId
+          ? supabase.from('enrollments').select('id').eq('course_id', courseId).eq('student_id', targetStudentId).maybeSingle()
+          : Promise.resolve({ data: null })
+      ])
 
-      const isEnrolled = Boolean(enr)
+      const isEnrolled = Boolean(enrRes.data)
 
-      // Student can ONLY access published courses or courses they are enrolled in
-      if (activeUser.role === 'student' && course.status !== 'published' && !isEnrolled) {
+      if (activeUser.role === 'student' && rawCourse.status !== 'published' && !isEnrolled) {
         return null
       }
 
-      const chaptersWithLectures: ChapterWithLectures[] = (course.chapters || [])
-        .sort((a: any, b: any) => (a.chapter_order || 1) - (b.chapter_order || 1))
-        .map((ch: any) => ({
-          ...ch,
-          lectures: (ch.lectures || [])
-            .sort((a: any, b: any) => (a.lecture_order || 1) - (b.lecture_order || 1))
-            .map((l: any) => {
-              const prog = targetStudentId
-                ? l.progress?.find((p: any) => p.student_id === targetStudentId)
-                : undefined
-              return { ...l, progress: prog }
-            })
-        }))
+      const chaptersData = chaptersRes.data || []
+      const chIds = chaptersData.map((c) => c.id)
+
+      let lecturesData: any[] = []
+      let notesData: any[] = []
+      let progressData: any[] = []
+
+      if (chIds.length > 0) {
+        const lecsRes = await supabase.from('lectures').select('*').in('chapter_id', chIds).order('lecture_order')
+        lecturesData = lecsRes.data || []
+        const lecIds = lecturesData.map((l) => l.id)
+
+        if (lecIds.length > 0) {
+          const [notesRes, progRes] = await Promise.all([
+            supabase.from('notes').select('*').in('lecture_id', lecIds),
+            targetStudentId
+              ? supabase.from('lecture_progress').select('*').in('lecture_id', lecIds).eq('student_id', targetStudentId)
+              : Promise.resolve({ data: [] })
+          ])
+          notesData = notesRes.data || []
+          progressData = progRes.data || []
+        }
+      }
+
+      const chaptersWithLectures: ChapterWithLectures[] = chaptersData.map((ch) => ({
+        ...ch,
+        lectures: lecturesData
+          .filter((l) => l.chapter_id === ch.id)
+          .map((l) => ({
+            ...l,
+            notes: notesData.filter((n) => n.lecture_id === l.id),
+            progress: progressData.find((p) => p.lecture_id === l.id)
+          }))
+      }))
 
       const allLecs = chaptersWithLectures.flatMap((ch) => ch.lectures)
       const completedCount = allLecs.filter((l) => l.progress?.completed).length
@@ -145,13 +214,13 @@ export async function getCourseById(
       const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
       return {
-        ...course,
-        teacher: course.teacher || {
-          id: course.teacher_id,
+        ...rawCourse,
+        teacher: teacherRes.data || {
+          id: rawCourse.teacher_id,
           full_name: 'Instructor',
           email: 'instructor@example.com',
           role: 'teacher',
-          created_at: new Date().toISOString()
+          created_at: rawCourse.created_at
         },
         chapters: chaptersWithLectures,
         is_enrolled: isEnrolled,
@@ -159,7 +228,7 @@ export async function getCourseById(
         completed_lectures_count: completedCount,
         total_lectures_count: totalCount,
         _count: {
-          enrollments: 1,
+          enrollments: isEnrolled ? 1 : 0,
           lectures: totalCount
         }
       }
@@ -325,11 +394,20 @@ export async function enrollCourse(courseId: string, studentId?: string) {
 
   try {
     const supabase = createAdminClient()
-    await supabase.from('enrollments').upsert({
-      student_id: targetStudentId,
-      course_id: courseId,
-      enrolled_at: new Date().toISOString()
-    })
+    const { data: existing } = await supabase
+      .from('enrollments')
+      .select('id')
+      .eq('student_id', targetStudentId)
+      .eq('course_id', courseId)
+      .maybeSingle()
+
+    if (!existing) {
+      await supabase.from('enrollments').insert({
+        student_id: targetStudentId,
+        course_id: courseId,
+        enrolled_at: new Date().toISOString()
+      })
+    }
   } catch (err) {
     console.warn('Supabase enrollCourse error:', err)
   }

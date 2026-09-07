@@ -179,30 +179,36 @@ export async function getLectureDetails(lectureId: string, studentId?: string) {
 
   try {
     const supabase = createAdminClient()
-    const { data: lecture, error } = await supabase
+    const { data: lecture } = await supabase
       .from('lectures')
-      .select(`
-        *,
-        notes:notes(*),
-        chapter:chapters(*, course:courses(*))
-      `)
+      .select('*')
       .eq('id', lectureId)
-      .single()
+      .maybeSingle()
 
-    if (!error && lecture && lecture.chapter?.course) {
-      const { data: prog } = await supabase
-        .from('lecture_progress')
-        .select('*')
-        .eq('lecture_id', lectureId)
-        .eq('student_id', targetStudentId || '')
-        .maybeSingle()
+    if (lecture) {
+      const [chapterRes, notesRes, progRes] = await Promise.all([
+        supabase.from('chapters').select('*').eq('id', lecture.chapter_id).maybeSingle(),
+        supabase.from('notes').select('*').eq('lecture_id', lectureId),
+        targetStudentId
+          ? supabase.from('lecture_progress').select('*').eq('lecture_id', lectureId).eq('student_id', targetStudentId).maybeSingle()
+          : Promise.resolve({ data: null })
+      ])
 
-      return {
-        lecture: { ...lecture, progress: prog || undefined },
-        chapter: lecture.chapter,
-        course: lecture.chapter.course,
-        prevLectureId: null,
-        nextLectureId: null
+      if (chapterRes.data) {
+        const { data: course } = await supabase.from('courses').select('*').eq('id', chapterRes.data.course_id).maybeSingle()
+        if (course) {
+          return {
+            lecture: {
+              ...lecture,
+              notes: notesRes.data || [],
+              progress: progRes.data || undefined
+            },
+            chapter: chapterRes.data,
+            course,
+            prevLectureId: null,
+            nextLectureId: null
+          }
+        }
       }
     }
   } catch (err) {

@@ -188,6 +188,20 @@ export async function getAdminNotificationsAction(filter?: {
 
 export async function getUserNotificationPreferencesAction(): Promise<NotificationPreferences> {
   const activeUser = dataStore.getActiveUser()
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('notification_preferences')
+      .select('*')
+      .eq('user_id', activeUser.id)
+      .maybeSingle()
+
+    if (!error && data) {
+      return data as NotificationPreferences
+    }
+  } catch (err) {
+    // Fallback to dataStore
+  }
   return dataStore.getNotificationPreferences(activeUser.id)
 }
 
@@ -195,6 +209,36 @@ export async function updateUserNotificationPreferencesAction(
   updates: Partial<NotificationPreferences>
 ): Promise<NotificationPreferences> {
   const activeUser = dataStore.getActiveUser()
+  try {
+    const supabase = createAdminClient()
+    const { data: existing } = await supabase
+      .from('notification_preferences')
+      .select('id')
+      .eq('user_id', activeUser.id)
+      .maybeSingle()
+
+    if (existing?.id) {
+      await supabase
+        .from('notification_preferences')
+        .update(updates)
+        .eq('id', existing.id)
+    } else {
+      await supabase
+        .from('notification_preferences')
+        .insert({
+          user_id: activeUser.id,
+          email_notifications: true,
+          push_notifications: true,
+          course_announcements: true,
+          short_interactions: true,
+          system_broadcasts: true,
+          sound_enabled: true,
+          ...updates
+        })
+    }
+  } catch (err) {
+    // Fallback
+  }
   const saved = dataStore.updateNotificationPreferences(activeUser.id, updates)
   revalidatePath('/', 'layout')
   return saved
