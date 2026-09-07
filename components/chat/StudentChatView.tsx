@@ -298,7 +298,7 @@ export default function StudentChatView() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-13.5rem)] sm:h-[calc(100vh-10rem)] min-h-[520px] rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-10.5rem)] sm:h-[calc(100vh-7.5rem)] min-h-[550px] rounded-xl border border-border bg-card shadow-xs overflow-hidden">
       {/* Main Chat Workspace Grid */}
       <div className="flex flex-1 min-h-0 lg:divide-x divide-border overflow-hidden">
         {/* Left Sidebar: Conversations & Contacts */}
