@@ -8,14 +8,14 @@ export const metadata: Metadata = {
 
 export default function StudentChatPage() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5 sm:space-y-4">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 pb-1 sm:pb-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">
             Student Chat & Mentorship
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 hidden sm:block">
             Connect in real-time with your instructors, collaborate with study cohorts, and start video consultations.
           </p>
         </div>

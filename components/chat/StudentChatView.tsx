@@ -23,7 +23,8 @@ import {
   Hash,
   BookOpen,
   X,
-  Key
+  Key,
+  ArrowLeft
 } from 'lucide-react'
 import {
   initCometChat,
@@ -125,6 +126,7 @@ export default function StudentChatView() {
   const [isConfigured, setIsConfigured] = useState(false)
   const [isInitializing, setIsInitializing] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState<'checking' | 'live' | 'demo'>('checking')
+  const [showMobileChat, setShowMobileChat] = useState(false)
 
   // Dynamic credentials state for the config modal
   const [appIdInput, setAppIdInput] = useState('')
@@ -296,43 +298,42 @@ export default function StudentChatView() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8.5rem)] rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-13.5rem)] sm:h-[calc(100vh-10rem)] min-h-[520px] rounded-xl border border-border bg-card shadow-xs overflow-hidden">
       {/* Top Banner: CometChat Connection State */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-muted/40 border-b border-border text-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-1.5 font-medium">
-            <span className="relative flex h-2 w-2">
-              <span
-                className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  connectionStatus === 'live' ? 'bg-emerald-400' : 'bg-amber-400'
-                }`}
-              />
-              <span
-                className={`relative inline-flex rounded-full h-2 w-2 ${
-                  connectionStatus === 'live' ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}
-              />
-            </span>
-            <span className="text-foreground font-semibold">CometChat Engine</span>
-          </div>
+      <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-muted/40 border-b border-border text-xs shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span
+              className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                connectionStatus === 'live' ? 'bg-emerald-400' : 'bg-amber-400'
+              }`}
+            />
+            <span
+              className={`relative inline-flex rounded-full h-2 w-2 ${
+                connectionStatus === 'live' ? 'bg-emerald-500' : 'bg-amber-500'
+              }`}
+            />
+          </span>
+          <span className="text-foreground font-semibold text-xs sm:text-sm shrink-0">CometChat Engine</span>
 
           <span className="hidden sm:inline-block text-muted-foreground">•</span>
 
-          <span className="text-muted-foreground hidden sm:inline-block">
+          <span className="text-muted-foreground truncate text-[11px] sm:text-xs">
             {connectionStatus === 'live'
-              ? 'Connected to CometChat Live Cloud'
-              : 'Interactive Student Chat Workspace (Demo Sandbox)'}
+              ? 'Connected to Live Cloud'
+              : 'Interactive Student Workspace (Demo)'}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {connectionStatus !== 'live' && (
             <button
               onClick={() => setShowConfigModal(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
             >
-              <Key className="h-3.5 w-3.5" />
-              <span>Configure CometChat Keys</span>
+              <Key className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline">Configure Keys</span>
+              <span className="sm:hidden">Keys</span>
             </button>
           )}
 
@@ -340,7 +341,7 @@ export default function StudentChatView() {
             href="https://www.cometchat.com/docs"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            className="inline-flex items-center gap-1 px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-muted"
           >
             <span>Docs</span>
             <ExternalLink className="h-3 w-3" />
@@ -349,9 +350,13 @@ export default function StudentChatView() {
       </div>
 
       {/* Main Chat Workspace Grid */}
-      <div className="flex flex-1 min-h-0 divide-x divide-border">
+      <div className="flex flex-1 min-h-0 lg:divide-x divide-border overflow-hidden">
         {/* Left Sidebar: Conversations & Contacts */}
-        <div className="w-80 sm:w-88 flex flex-col bg-sidebar shrink-0">
+        <div
+          className={`w-full lg:w-80 xl:w-96 flex flex-col bg-sidebar shrink-0 ${
+            showMobileChat ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
           {/* Search bar */}
           <div className="p-3 border-b border-border">
             <div className="relative">
@@ -414,12 +419,13 @@ export default function StudentChatView() {
                     key={contact.id}
                     onClick={() => {
                       setActiveContact(contact)
+                      setShowMobileChat(true)
                       setContacts((prev) =>
                         prev.map((c) => (c.id === contact.id ? { ...c, unread: 0 } : c))
                       )
                     }}
-                    className={`w-full flex items-start gap-3 p-3 text-left transition-colors ${
-                      isActive ? 'bg-accent/60' : 'hover:bg-muted/40'
+                    className={`w-full flex items-start gap-3 p-3 text-left transition-colors cursor-pointer ${
+                      isActive ? 'bg-primary/10 border-l-2 border-primary' : 'hover:bg-muted/40'
                     }`}
                   >
                     {/* Avatar with Status badge */}
@@ -498,53 +504,87 @@ export default function StudentChatView() {
         </div>
 
         {/* Right Area: Active Chat Window */}
-        <div className="flex-1 flex flex-col min-w-0 bg-background">
+        <div
+          className={`flex-1 flex flex-col min-w-0 bg-background animate-in fade-in-50 duration-150 ${
+            !showMobileChat ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
-            <div className="flex items-center gap-3 min-w-0">
-              <img
-                src={activeContact.avatar}
-                alt={activeContact.name}
-                className="h-10 w-10 rounded-full object-cover ring-1 ring-border shrink-0"
-              />
+          <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b border-border bg-card shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              {/* Back button on mobile & tablet */}
+              <button
+                type="button"
+                onClick={() => setShowMobileChat(false)}
+                className="lg:hidden inline-flex items-center gap-1.5 py-1.5 px-2 -ml-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted active:bg-muted/80 transition-colors shrink-0 cursor-pointer"
+                aria-label="Back to contacts and groups"
+                title="Back to chats"
+              >
+                <ArrowLeft className="h-5 w-5 text-foreground" />
+                <span className="text-xs font-semibold hidden xs:inline">Chats</span>
+              </button>
+
+              <div className="relative shrink-0">
+                <img
+                  src={activeContact.avatar}
+                  alt={activeContact.name}
+                  className="h-9 w-9 sm:h-10 sm:w-10 rounded-full object-cover ring-1 ring-border"
+                />
+                {activeContact.role !== 'group' && (
+                  <div
+                    className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-background ${
+                      activeContact.status === 'online'
+                        ? 'bg-emerald-500'
+                        : activeContact.status === 'away'
+                        ? 'bg-amber-500'
+                        : 'bg-muted-foreground'
+                    }`}
+                  />
+                )}
+              </div>
+
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <h3 className="text-sm font-semibold text-foreground truncate">
                     {activeContact.name}
                   </h3>
                   {activeContact.role === 'instructor' && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary/10 text-primary shrink-0">
                       <GraduationCap className="h-3 w-3" />
-                      Instructor
+                      <span className="hidden xs:inline">Instructor</span>
                     </span>
                   )}
                   {activeContact.role === 'group' && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground shrink-0">
                       <Hash className="h-3 w-3" />
-                      Channel
+                      <span className="hidden xs:inline">Channel</span>
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-[11px] sm:text-xs text-muted-foreground truncate max-w-[180px] sm:max-w-md">
                   {activeContact.title}
                 </p>
               </div>
             </div>
 
             {/* Calling & Action Buttons */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               <button
+                type="button"
                 onClick={() => setIsCalling('audio')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
+                title="Voice Call"
+                className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
               >
-                <Phone className="h-3.5 w-3.5 text-primary" />
+                <Phone className="h-4 w-4 text-primary" />
                 <span className="hidden sm:inline">Voice Call</span>
               </button>
               <button
+                type="button"
                 onClick={() => setIsCalling('video')}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shadow-xs"
+                title="Video Consult"
+                className="flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shadow-xs"
               >
-                <Video className="h-3.5 w-3.5" />
+                <Video className="h-4 w-4" />
                 <span className="hidden sm:inline">Video Consult</span>
               </button>
             </div>
@@ -552,18 +592,19 @@ export default function StudentChatView() {
 
           {/* Active Call Overlay (Simulated Calling via CometChat Calls SDK) */}
           {isCalling && (
-            <div className="flex items-center justify-between px-4 py-2.5 bg-primary/10 border-b border-primary/20 text-xs text-primary animate-in fade-in duration-200">
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-primary animate-ping" />
-                <span className="font-semibold">
+            <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-primary/10 border-b border-primary/20 text-xs text-primary animate-in fade-in duration-200 shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="h-2 w-2 rounded-full bg-primary animate-ping shrink-0" />
+                <span className="font-semibold truncate">
                   {isCalling === 'video' ? 'CometChat Video Call' : 'CometChat Audio Call'} with{' '}
                   {activeContact.name}...
                 </span>
-                <span className="text-muted-foreground text-[11px]">(Call SDK Active)</span>
+                <span className="text-muted-foreground text-[11px] hidden sm:inline shrink-0">(Call SDK Active)</span>
               </div>
               <button
+                type="button"
                 onClick={() => setIsCalling(null)}
-                className="px-2.5 py-0.5 rounded-md bg-destructive text-destructive-foreground text-xs font-medium hover:bg-destructive/90 transition-colors"
+                className="px-2.5 py-1 rounded-md bg-destructive text-destructive-foreground text-xs font-medium hover:bg-destructive/90 transition-colors shrink-0"
               >
                 End Call
               </button>
@@ -571,19 +612,19 @@ export default function StudentChatView() {
           )}
 
           {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3 sm:space-y-4">
             {/* Introductory Badge */}
-            <div className="text-center my-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/60 text-muted-foreground text-xs border border-border">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                <span>End-to-End LMS Secure Session • CometChat UI Kit</span>
+            <div className="text-center my-1 sm:my-2">
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full bg-muted/60 text-muted-foreground text-[11px] sm:text-xs border border-border max-w-full">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                <span className="truncate">End-to-End LMS Secure Session • CometChat UI Kit</span>
               </div>
             </div>
 
             {currentMessages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex items-end gap-2.5 ${msg.isSelf ? 'justify-end' : 'justify-start'}`}
+                className={`flex items-end gap-2 sm:gap-2.5 ${msg.isSelf ? 'justify-end' : 'justify-start'}`}
               >
                 {!msg.isSelf && (
                   <img
@@ -594,7 +635,7 @@ export default function StudentChatView() {
                 )}
 
                 <div
-                  className={`max-w-[78%] sm:max-w-[65%] rounded-2xl px-4 py-2.5 text-sm shadow-xs ${
+                  className={`max-w-[85%] sm:max-w-[75%] md:max-w-[65%] rounded-2xl px-3.5 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm shadow-xs break-words ${
                     msg.isSelf
                       ? 'bg-primary text-primary-foreground rounded-br-xs'
                       : 'bg-muted/70 text-foreground border border-border/80 rounded-bl-xs'
@@ -605,9 +646,9 @@ export default function StudentChatView() {
                       {msg.senderName}
                     </div>
                   )}
-                  <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                  <p className="leading-relaxed whitespace-pre-wrap break-words">{msg.text}</p>
                   <div
-                    className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${
+                    className={`flex items-center justify-end gap-1 mt-1 text-[10px] select-none ${
                       msg.isSelf ? 'text-primary-foreground/75' : 'text-muted-foreground'
                     }`}
                   >
@@ -621,11 +662,11 @@ export default function StudentChatView() {
           </div>
 
           {/* Input Box */}
-          <div className="p-3 border-t border-border bg-card">
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-1.5 focus-within:ring-1 focus-within:ring-ring transition-shadow">
+          <div className="p-2 sm:p-3 border-t border-border bg-card shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-border bg-background px-2.5 sm:px-3 py-1 sm:py-1.5 focus-within:ring-1 focus-within:ring-ring transition-shadow">
               <button
                 type="button"
-                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 shrink-0"
                 title="Attach course files or code snippet"
               >
                 <Paperclip className="h-4 w-4" />
@@ -636,13 +677,13 @@ export default function StudentChatView() {
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={`Message ${activeContact.name}... (Press Enter to send)`}
-                className="flex-1 bg-transparent py-1 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
+                placeholder={`Message ${activeContact.name}...`}
+                className="flex-1 min-w-0 bg-transparent py-1 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
               />
 
               <button
                 type="button"
-                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                className="text-muted-foreground hover:text-foreground transition-colors p-1 shrink-0"
                 title="Insert emoji"
               >
                 <Smile className="h-4 w-4" />
@@ -652,14 +693,14 @@ export default function StudentChatView() {
                 type="button"
                 onClick={handleSendMessage}
                 disabled={!inputText.trim()}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
+                className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs"
               >
-                <Send className="h-4 w-4" />
+                <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               </button>
             </div>
-            <div className="flex items-center justify-between mt-2 px-1 text-[11px] text-muted-foreground">
+            <div className="hidden sm:flex items-center justify-between mt-2 px-1 text-[11px] text-muted-foreground">
               <span>Supports real-time chat, code snippets, and direct mentor consultation.</span>
-              <span className="hidden sm:inline">CometChat v7.1 React UI Kit</span>
+              <span>CometChat v7.1 React UI Kit</span>
             </div>
           </div>
         </div>
