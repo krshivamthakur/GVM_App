@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Image }  from 'nex
+import Image from 'next/image'
 import { loginUser } from '@/actions/auth-actions'
 import { 
   GraduationCap, 
@@ -71,11 +71,11 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6">
         {/* Brand & Heading */}
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 rounded-2xl bg-indigo-600 text-white items-center justify-center shadow-lg shadow-indigo-500/20">
-            <GraduationCap className="h-6 w-6" />
+          <div className="inline-flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white shadow-lg shadow-indigo-500/20">
+            <Image src="/gvm.png" alt="GVM Logo" width={80} height={80} className="h-full w-full object-contain" />
           </div>
           <h1 className="text-2xl font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight">
-            Education LMS Portal
+            GVM
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Enter your account ID / Email and password to access your role portal.

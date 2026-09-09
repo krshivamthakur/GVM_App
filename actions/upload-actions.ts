@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/server'
 
 export async function uploadFile(
   formData: FormData,
@@ -13,7 +13,7 @@ export async function uploadFile(
     }
 
     try {
-      const supabase = await createClient()
+      const supabase = createAdminClient()
       const fileExt = file.name.split('.').pop()
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
       const filePath = `${fileName}`

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { updateLectureProgress } from '@/actions/progress-actions'
 import { dataStore } from '@/lib/data/store'
 
 export async function POST(req: NextRequest) {
@@ -13,11 +14,11 @@ export async function POST(req: NextRequest) {
     const activeUser = dataStore.getActiveUser()
     const targetStudentId = studentId || activeUser.id
 
-    const progress = dataStore.updateLectureProgress(
-      targetStudentId,
+    const progress = await updateLectureProgress(
       lectureId,
       Math.floor(watchedSeconds || 0),
-      completed
+      completed,
+      targetStudentId
     )
 
     return NextResponse.json({ success: true, progress })

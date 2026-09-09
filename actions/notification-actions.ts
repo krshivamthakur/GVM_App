@@ -211,31 +211,19 @@ export async function updateUserNotificationPreferencesAction(
   const activeUser = dataStore.getActiveUser()
   try {
     const supabase = createAdminClient()
-    const { data: existing } = await supabase
+    await supabase
       .from('notification_preferences')
-      .select('id')
-      .eq('user_id', activeUser.id)
-      .maybeSingle()
-
-    if (existing?.id) {
-      await supabase
-        .from('notification_preferences')
-        .update(updates)
-        .eq('id', existing.id)
-    } else {
-      await supabase
-        .from('notification_preferences')
-        .insert({
-          user_id: activeUser.id,
-          email_notifications: true,
-          push_notifications: true,
-          course_announcements: true,
-          short_interactions: true,
-          system_broadcasts: true,
-          sound_enabled: true,
-          ...updates
-        })
-    }
+      .upsert({
+        user_id: activeUser.id,
+        email_notifications: true,
+        push_notifications: true,
+        course_announcements: true,
+        short_interactions: true,
+        system_broadcasts: true,
+        sound_enabled: true,
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
   } catch (err) {
     // Fallback
   }
