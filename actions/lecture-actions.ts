@@ -91,20 +91,33 @@ export async function createLecture(data: LectureFormData, courseId: string): Pr
 
   try {
     const supabase = createAdminClient()
-    const { data: newLec, error } = await supabase
+    const payload: any = {
+      chapter_id: data.chapter_id,
+      title: data.title,
+      description: data.description || '',
+      video_path: data.video_path || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+      duration: data.duration || 600,
+      lecture_order: data.lecture_order || 1,
+      is_published: data.is_published ?? true,
+    }
+
+    if (data.is_free_preview !== undefined) {
+      payload.is_free_preview = data.is_free_preview
+    }
+
+    let { data: newLec, error } = await supabase
       .from('lectures')
-      .insert({
-        chapter_id: data.chapter_id,
-        title: data.title,
-        description: data.description || '',
-        video_path: data.video_path || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-        duration: data.duration || 600,
-        lecture_order: data.lecture_order || 1,
-        is_published: data.is_published ?? true,
-        is_free_preview: data.is_free_preview ?? false
-      })
+      .insert(payload)
       .select()
       .single()
+
+    // If is_free_preview column doesn't exist yet in Supabase schema, retry without it
+    if (error && error.message?.includes('is_free_preview')) {
+      delete payload.is_free_preview
+      const retry = await supabase.from('lectures').insert(payload).select().single()
+      newLec = retry.data
+      error = retry.error
+    }
 
     if (!error && newLec) {
       dataStore.createLecture(newLec)
@@ -112,8 +125,14 @@ export async function createLecture(data: LectureFormData, courseId: string): Pr
       revalidatePath(`/student/courses/${courseId}`)
       return { success: true, lecture: newLec }
     }
-  } catch (err) {
-    console.warn('Supabase createLecture error, writing local:', err)
+
+    if (error) {
+      console.error('Supabase createLecture error:', error)
+      return { success: false, error: error.message }
+    }
+  } catch (err: any) {
+    console.error('Supabase createLecture exception:', err)
+    return { success: false, error: err.message || 'Failed to create lecture' }
   }
 
   const fallback = dataStore.createLecture({

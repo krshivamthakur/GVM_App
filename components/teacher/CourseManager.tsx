@@ -100,6 +100,11 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
         course.id
       )
 
+      if (!lecRes.success) {
+        alert(lecRes.error || 'Failed to save lecture to database.')
+        return
+      }
+
       // Attach PDF notes if provided
       if (lecRes.lecture && pdfTitle.trim()) {
         await addNoteToLecture(
