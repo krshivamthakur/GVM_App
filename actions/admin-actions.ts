@@ -67,6 +67,7 @@ export interface CreateUserData {
   teacher_status?: TeacherStatus
   bio?: string
   avatar_url?: string
+  password?: string
 }
 
 export async function createUser(data: CreateUserData): Promise<{ success: boolean; user?: Profile; error?: string }> {
@@ -79,8 +80,10 @@ export async function createUser(data: CreateUserData): Promise<{ success: boole
     teacher_status: data.role === 'teacher' ? (data.teacher_status || 'approved') : undefined,
     bio: data.bio || '',
     avatar_url: data.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    password: data.password ? data.password.trim() : undefined,
     created_at: new Date().toISOString()
   }
+
 
   try {
     const supabase = createAdminClient()

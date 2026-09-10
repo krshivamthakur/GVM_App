@@ -19,8 +19,13 @@ import {
   Check, 
   X,
   Sparkles,
-  Award
+  Award,
+  Eye,
+  EyeOff,
+  Lock,
+  Key
 } from 'lucide-react'
+
 
 interface UserManagementTableProps {
   initialUsers: Profile[]
@@ -35,6 +40,8 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createName, setCreateName] = useState('')
   const [createEmail, setCreateEmail] = useState('')
+  const [createPassword, setCreatePassword] = useState('')
+  const [showCreatePassword, setShowCreatePassword] = useState(false)
   const [createRole, setCreateRole] = useState<UserRole>('student')
   const [createTeacherStatus, setCreateTeacherStatus] = useState<TeacherStatus>('approved')
   const [createBio, setCreateBio] = useState('')
@@ -44,6 +51,8 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
   // Edit User Modal State
   const [editingUser, setEditingUser] = useState<Profile | null>(null)
   const [editName, setEditName] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [showEditPassword, setShowEditPassword] = useState(false)
   const [editRole, setEditRole] = useState<UserRole>('student')
   const [editTeacherStatus, setEditTeacherStatus] = useState<TeacherStatus>('approved')
   const [editBio, setEditBio] = useState('')
@@ -78,7 +87,8 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
         role: createRole,
         teacher_status: createRole === 'teacher' ? createTeacherStatus : undefined,
         bio: createBio,
-        avatar_url: createAvatar || undefined
+        avatar_url: createAvatar || undefined,
+        password: createPassword.trim() || undefined
       })
 
       if (res.success && res.user) {
@@ -86,6 +96,7 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
         setShowCreateModal(false)
         setCreateName('')
         setCreateEmail('')
+        setCreatePassword('')
         setCreateBio('')
         setCreateAvatar('')
       } else {
@@ -100,6 +111,8 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
   const openEdit = (user: Profile) => {
     setEditingUser(user)
     setEditName(user.full_name || '')
+    setEditPassword('')
+    setShowEditPassword(false)
     setEditRole(user.role)
     setEditTeacherStatus(user.teacher_status || 'approved')
     setEditBio(user.bio || '')
@@ -113,21 +126,27 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
     setIsSaving(true)
 
     try {
-      const res = await updateUser(editingUser.id, {
+      const updates: Partial<Profile> = {
         full_name: editName,
         role: editRole,
         teacher_status: editRole === 'teacher' ? editTeacherStatus : undefined,
         bio: editBio,
         avatar_url: editAvatar || undefined
-      })
+      }
+
+      if (editPassword.trim()) {
+        updates.password = editPassword.trim()
+      }
+
+      const res = await updateUser(editingUser.id, updates)
 
       if (res.success && res.user) {
         setUsers((prev) => prev.map((u) => (u.id === editingUser.id ? res.user! : u)))
         setEditingUser(null)
       } else {
         alert(res.error || 'Failed to update user')
-
       }
+
     } finally {
       setIsSaving(false)
     }
@@ -382,6 +401,32 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Lock className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Account Password</span>
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Optional</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCreatePassword ? 'text' : 'password'}
+                    placeholder="Set password (min 4 chars) or leave blank"
+                    value={createPassword}
+                    onChange={(e) => setCreatePassword(e.target.value)}
+                    className="w-full pl-3.5 pr-10 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatePassword(!showCreatePassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                  >
+                    {showCreatePassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
@@ -527,6 +572,32 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
                   onChange={(e) => setEditBio(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Key className="w-3.5 h-3.5 text-blue-500" />
+                    <span>Change Password</span>
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Leave blank to keep unchanged</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showEditPassword ? 'text' : 'password'}
+                    placeholder="Enter new password to change..."
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    className="w-full pl-3.5 pr-10 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                  >
+                    {showEditPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <AvatarSelector

@@ -10,8 +10,10 @@ export interface Profile {
   role: UserRole
   teacher_status?: TeacherStatus
   bio?: string | null
+  password?: string | null
   created_at: string
 }
+
 
 export interface Course {
   id: string

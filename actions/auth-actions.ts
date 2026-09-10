@@ -166,6 +166,15 @@ export async function loginUser(email: string, password?: string) {
     }
   }
 
+  // Verify password if user has a set password
+  if (user.password && password && user.password !== password.trim()) {
+    return {
+      success: false,
+      error: 'Incorrect password. Please verify your credentials and try again.'
+    }
+  }
+
+
   // 3. Set persistent HTTP auth session cookies
   try {
     const cookieStore = await cookies()
@@ -218,6 +227,7 @@ export async function registerUser(fullName: string, email: string, role: UserRo
     avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
     role,
     teacher_status: role === 'teacher' ? 'pending' : 'approved',
+    password: password ? password.trim() : undefined,
     created_at: new Date().toISOString()
   }
 
@@ -257,6 +267,7 @@ export async function updateCurrentUserProfile(updates: {
   full_name?: string
   bio?: string
   avatar_url?: string
+  password?: string
 }): Promise<{ success: boolean; user?: Profile; error?: string }> {
   const current = await getCurrentUser()
   if (!current) {

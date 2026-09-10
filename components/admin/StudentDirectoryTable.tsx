@@ -17,7 +17,10 @@ import {
   X, 
   Check, 
   Sparkles, 
-  ShieldAlert 
+  ShieldAlert,
+  Lock,
+  Eye,
+  EyeOff
 } from 'lucide-react'
 
 interface StudentDirectoryTableProps {
@@ -34,6 +37,8 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
   const [createEmail, setCreateEmail] = useState('')
   const [createBio, setCreateBio] = useState('')
   const [createAvatar, setCreateAvatar] = useState('')
+  const [createPassword, setCreatePassword] = useState('')
+  const [showCreatePassword, setShowCreatePassword] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
 
   // Edit Student Modal State
@@ -41,6 +46,8 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
   const [editName, setEditName] = useState('')
   const [editBio, setEditBio] = useState('')
   const [editAvatar, setEditAvatar] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [showEditPassword, setShowEditPassword] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
 
@@ -71,7 +78,8 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
         email: createEmail,
         role: 'student',
         bio: createBio || 'Student learner',
-        avatar_url: createAvatar || undefined
+        avatar_url: createAvatar || undefined,
+        password: createPassword ? createPassword.trim() : undefined
       })
 
       if (res.success && res.user) {
@@ -81,6 +89,8 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
         setCreateEmail('')
         setCreateBio('')
         setCreateAvatar('')
+        setCreatePassword('')
+        setShowCreatePassword(false)
       } else {
         alert(res.error || 'Failed to create student account')
       }
@@ -95,6 +105,8 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
     setEditName(student.full_name || '')
     setEditBio(student.bio || '')
     setEditAvatar(student.avatar_url || '')
+    setEditPassword('')
+    setShowEditPassword(false)
   }
 
   // Handle Save Edit
@@ -107,12 +119,14 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
       const res = await updateUser(editingStudent.id, {
         full_name: editName,
         bio: editBio,
-        avatar_url: editAvatar || undefined
+        avatar_url: editAvatar || undefined,
+        ...(editPassword.trim() ? { password: editPassword.trim() } : {})
       })
 
       if (res.success && res.user) {
         setStudents((prev) => prev.map((s) => (s.id === editingStudent.id ? res.user! : s)))
         setEditingStudent(null)
+        setEditPassword('')
       } else {
         alert(res.error || 'Failed to update student profile')
       }
@@ -319,6 +333,28 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Set Initial Password (Optional)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showCreatePassword ? 'text' : 'password'}
+                    placeholder="Enter password or leave blank (min 4 chars)"
+                    value={createPassword}
+                    onChange={(e) => setCreatePassword(e.target.value)}
+                    className="w-full px-3 py-2 pr-10 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatePassword(!showCreatePassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                  >
+                    {showCreatePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Bio / Learning Goals
                 </label>
                 <textarea
@@ -399,6 +435,28 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
                   onChange={(e) => setEditBio(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Change Password (Optional)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showEditPassword ? 'text' : 'password'}
+                    placeholder="Leave blank to keep existing password"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    className="w-full px-3 py-2 pr-10 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                  >
+                    {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <AvatarSelector

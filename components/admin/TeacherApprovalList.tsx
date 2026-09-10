@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { Profile } from '@/types/database'
 import { approveTeacher, createUser } from '@/actions/admin-actions'
-import { formatDisplayDate } from '@/lib/utils'
-import { Check, X, Mail, Calendar, Search, UserPlus, Sparkles, BookOpen } from 'lucide-react'
+import { Check, X, Mail, Calendar, Search, UserPlus, Sparkles, BookOpen, Lock, Eye, EyeOff } from 'lucide-react'
 import { AvatarSelector } from '@/components/ui/AvatarSelector'
+import { formatDisplayDate } from '@/lib/utils'
 
 export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Profile[] }) {
   const [teachers, setTeachers] = useState(initialTeachers)
@@ -17,6 +17,8 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
   const [showAddModal, setShowAddModal] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [bio, setBio] = useState('')
   const [avatar, setAvatar] = useState('')
   const [isCreating, setIsCreating] = useState(false)
@@ -45,13 +47,15 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
         role: 'teacher',
         teacher_status: 'approved',
         bio: bio || 'Course Instructor & Educator',
-        avatar_url: avatar || undefined
+        avatar_url: avatar || undefined,
+        password: password.trim() || undefined
       })
       if (res.success && res.user) {
         setTeachers((prev) => [res.user!, ...prev])
         setShowAddModal(false)
         setName('')
         setEmail('')
+        setPassword('')
         setBio('')
         setAvatar('')
       } else {
@@ -282,6 +286,32 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <Lock className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Account Password</span>
+                  </span>
+                  <span className="text-[10px] text-zinc-400 font-normal">Optional</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    placeholder="Set teacher login password (min 4 chars) or leave blank"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-3.5 pr-10 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
               </div>
 
               <div>
