@@ -362,17 +362,41 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
 
       {/* CREATE USER MODAL */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 my-8">
-            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mb-1 flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-rose-600" />
-              <span>Create New User</span>
-            </h3>
-            <p className="text-xs text-zinc-500 mb-4">
-              Add a new student, teacher, or admin. This saves directly into the Supabase &quot;Profile&quot; table.
-            </p>
+        <div 
+          onClick={() => setShowCreateModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[88vh] flex flex-col rounded-3xl bg-white dark:bg-zinc-900 shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden animate-in zoom-in-95 duration-150"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-50 dark:bg-rose-950/60 text-rose-600 flex items-center justify-center">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
+                    Create New User
+                  </h3>
+                  <p className="text-[11px] text-zinc-500">
+                    Add student, teacher, or admin to Supabase
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
+            {/* Scrollable Form Body */}
+            <form id="create-user-form" onSubmit={handleCreate} className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Full Name *
@@ -383,7 +407,7 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
                   placeholder="e.g. Dr. Rajesh Khanna"
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
                 />
               </div>
 
@@ -397,7 +421,7 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
                   placeholder="user@example.com"
                   value={createEmail}
                   onChange={(e) => setCreateEmail(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
                 />
               </div>
 
@@ -480,41 +504,67 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
                 fallbackName={createName}
                 label="Profile Avatar (Gallery, Upload, or Link)"
               />
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isCreating}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-500 shadow-sm shadow-rose-600/20"
-                >
-                  {isCreating ? 'Saving to Supabase...' : 'Save User to Supabase'}
-                </button>
-              </div>
             </form>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-zinc-100 dark:border-zinc-800 shrink-0 bg-zinc-50/80 dark:bg-zinc-900/80">
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-600 hover:bg-zinc-200/60 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="create-user-form"
+                disabled={isCreating}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-500 shadow-sm shadow-rose-600/20 transition-all disabled:opacity-50"
+              >
+                {isCreating ? 'Saving to Supabase...' : 'Save User to Supabase'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* EDIT USER MODAL */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 my-8">
-            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mb-1 flex items-center gap-2">
-              <Edit3 className="w-5 h-5 text-blue-600" />
-              <span>Edit User Profile</span>
-            </h3>
-            <p className="text-xs text-zinc-500 mb-4">
-              Editing <strong className="text-zinc-800 dark:text-zinc-200">{editingUser.email}</strong>. Updates Supabase directly.
-            </p>
+        <div 
+          onClick={() => setEditingUser(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[88vh] flex flex-col rounded-3xl bg-white dark:bg-zinc-900 shadow-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden animate-in zoom-in-95 duration-150"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
+                    Edit User Profile
+                  </h3>
+                  <p className="text-[11px] text-zinc-500 truncate max-w-[280px]">
+                    Editing <span className="font-semibold text-zinc-800 dark:text-zinc-200">{editingUser.email}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-            <form onSubmit={handleSaveEdit} className="space-y-4">
+            {/* Scrollable Form Body */}
+            <form id="edit-user-form" onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Full Name *
@@ -524,7 +574,7 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -567,7 +617,7 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
                   Bio / Notes
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={editBio}
                   onChange={(e) => setEditBio(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -606,24 +656,26 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
                 fallbackName={editName}
                 label="Profile Avatar (Gallery, Upload, or Link)"
               />
-
-              <div className="flex justify-end gap-2 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-sm shadow-blue-600/20"
-                >
-                  {isSaving ? 'Updating...' : 'Save Changes'}
-                </button>
-              </div>
             </form>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-zinc-100 dark:border-zinc-800 shrink-0 bg-zinc-50/80 dark:bg-zinc-900/80">
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-600 hover:bg-zinc-200/60 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="edit-user-form"
+                disabled={isSaving}
+                className="px-5 py-2 rounded-xl text-xs font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-sm shadow-blue-600/20 transition-all disabled:opacity-50"
+              >
+                {isSaving ? 'Saving to Supabase...' : 'Save Changes'}
+              </button>
+            </div>
           </div>
         </div>
       )}

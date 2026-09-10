@@ -244,22 +244,41 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
 
       {/* Add Teacher Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-md rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
-              <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-purple-600" />
-                Add Instructor / Teacher
-              </h3>
+        <div 
+          onClick={() => setShowAddModal(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-xl max-h-[88vh] flex flex-col rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-100 dark:border-zinc-800 shrink-0 bg-white dark:bg-zinc-900">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 flex items-center justify-center">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-zinc-900 dark:text-zinc-100">
+                    Add Instructor / Teacher
+                  </h3>
+                  <p className="text-[11px] text-zinc-500">
+                    Create instructor profile with credentials and bio
+                  </p>
+                </div>
+              </div>
               <button
+                type="button"
                 onClick={() => setShowAddModal(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                title="Close"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddTeacher} className="space-y-3.5">
+            {/* Scrollable Form Body */}
+            <form id="add-teacher-form" onSubmit={handleAddTeacher} className="flex-1 overflow-y-auto px-6 py-4 space-y-3.5">
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Full Name *
@@ -270,7 +289,7 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
                   placeholder="e.g. Dr. Priya Sharma"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
@@ -284,7 +303,7 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
                   placeholder="instructor@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
@@ -319,11 +338,11 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
                   Department / Qualifications / Bio
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   placeholder="e.g. Senior Faculty - Physics & Mathematics"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
 
@@ -333,24 +352,26 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
                 fallbackName={name}
                 label="Instructor Avatar (Gallery, Upload, or Link)"
               />
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isCreating}
-                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-sm transition-all"
-                >
-                  {isCreating ? 'Adding...' : 'Add Teacher'}
-                </button>
-              </div>
             </form>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-2.5 px-6 py-3.5 border-t border-zinc-100 dark:border-zinc-800 shrink-0 bg-zinc-50/80 dark:bg-zinc-900/80">
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 text-xs font-semibold text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="add-teacher-form"
+                disabled={isCreating}
+                className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-sm transition-all disabled:opacity-50"
+              >
+                {isCreating ? 'Adding...' : 'Add Teacher'}
+              </button>
+            </div>
           </div>
         </div>
       )}
