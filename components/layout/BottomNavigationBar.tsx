@@ -150,6 +150,16 @@ export function BottomNavigationBar() {
     ]
   }
 
+  // Hide on auth routes and root
+  if (
+    !pathname ||
+    pathname === '/' ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/forgot-password')
+  ) {
+    return null
+  }
+
   const isItemActive = (item: BottomNavItem) => {
     if (item.exact) {
       return pathname === item.href
@@ -160,12 +170,19 @@ export function BottomNavigationBar() {
     return pathname.startsWith(item.href)
   }
 
+  const isShorts = pathname.startsWith('/shorts')
+
   return (
     <nav
       aria-label="Mobile and Tablet Navigation"
-      className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-background/95 backdrop-blur-lg border-t border-border shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.25)] transition-all"
+      className={cn(
+        'fixed bottom-0 inset-x-0 z-40 lg:hidden backdrop-blur-lg border-t transition-all',
+        isShorts
+          ? 'bg-zinc-950/95 border-zinc-800/80 shadow-[0_-4px_24px_rgba(0,0,0,0.7)] text-zinc-100'
+          : 'bg-background/95 border-border shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.25)]'
+      )}
     >
-      <div className="max-w-xl mx-auto h-16 px-1.5 flex items-center justify-around pb-[max(env(safe-area-inset-bottom),0.25rem)]">
+      <div className="max-w-md sm:max-w-2xl mx-auto h-16 px-1.5 sm:px-4 flex items-center justify-around pb-[max(env(safe-area-inset-bottom),0.25rem)]">
         {items.map((item) => {
           const active = isItemActive(item)
           const Icon = item.icon
@@ -177,13 +194,22 @@ export function BottomNavigationBar() {
               className={cn(
                 'relative flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition-all duration-200 group select-none',
                 active
-                  ? 'text-primary'
+                  ? isShorts
+                    ? 'text-rose-400 font-semibold'
+                    : 'text-primary font-semibold'
+                  : isShorts
+                  ? 'text-zinc-400 hover:text-white hover:bg-white/5 active:scale-95'
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent/40 active:scale-95'
               )}
             >
               {/* Top Active Indicator Pill */}
               {active && (
-                <span className="absolute top-0 w-8 h-0.5 rounded-full bg-primary shadow-xs animate-in fade-in zoom-in-75 duration-200" />
+                <span
+                  className={cn(
+                    'absolute top-0 w-8 h-0.5 rounded-full shadow-xs animate-in fade-in zoom-in-75 duration-200',
+                    isShorts ? 'bg-rose-500 shadow-rose-500/50' : 'bg-primary'
+                  )}
+                />
               )}
 
               {/* Icon Container with Badge */}
@@ -191,7 +217,13 @@ export function BottomNavigationBar() {
                 <div
                   className={cn(
                     'p-1 rounded-lg transition-transform duration-200',
-                    active ? 'bg-primary/10 scale-105' : 'group-hover:scale-105'
+                    active
+                      ? isShorts
+                        ? 'bg-rose-500/20 scale-105'
+                        : 'bg-primary/10 scale-105'
+                      : isShorts
+                      ? 'group-hover:scale-105 group-hover:bg-white/5'
+                      : 'group-hover:scale-105'
                   )}
                 >
                   <Icon className={cn('h-5 w-5 transition-colors', active ? 'stroke-[2.2]' : 'stroke-[1.8]')} />
@@ -209,7 +241,13 @@ export function BottomNavigationBar() {
               <span
                 className={cn(
                   'text-[10px] sm:text-[11px] font-medium tracking-tight mt-0.5 text-center truncate max-w-full leading-tight',
-                  active ? 'font-semibold text-primary' : 'text-muted-foreground'
+                  active
+                    ? isShorts
+                      ? 'font-semibold text-rose-400'
+                      : 'font-semibold text-primary'
+                    : isShorts
+                    ? 'text-zinc-400 group-hover:text-zinc-200'
+                    : 'text-muted-foreground'
                 )}
               >
                 {item.shortTitle ? (

@@ -41,7 +41,8 @@ export function Navbar() {
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/student') ||
     pathname.startsWith('/teacher') ||
-    pathname.startsWith('/admin')
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/shorts')
 
   if (hideNavbar) return null
 

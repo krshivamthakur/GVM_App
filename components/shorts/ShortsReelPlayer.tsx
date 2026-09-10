@@ -20,10 +20,12 @@ import {
   Send, 
   Check, 
   Compass,
-  ArrowRight
+  ArrowRight,
+  ArrowLeft
 } from 'lucide-react'
 import { toggleLikeShortVideo, toggleSaveShortVideo, addShortCommentAction } from '@/actions/short-actions'
 import { formatDisplayDate } from '@/lib/utils'
+import { parseVideoUrl } from '@/components/video/VideoPlayer'
 
 interface ShortsReelPlayerProps {
   shorts: ShortVideo[]
@@ -411,7 +413,7 @@ export function ShortsReelPlayer({
   }
 
   return (
-    <div className="relative flex items-center justify-center w-full min-h-[calc(100vh-8rem)] py-2 select-none">
+    <div className="relative flex items-center justify-center w-full min-h-[calc(100vh-5rem)] lg:min-h-screen py-2 select-none">
       {/* Ambient background glow matching the video */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-20 blur-3xl transition-all duration-700 hidden lg:block"
@@ -441,6 +443,7 @@ export function ShortsReelPlayer({
           if (Math.abs(diff) > 2) return null
 
           const isCurrent = idx === currentIndex
+          const parsed = parseVideoUrl(short.video_url)
 
           return (
             <div
@@ -451,33 +454,76 @@ export function ShortsReelPlayer({
               }}
               className="absolute inset-0 w-full h-full will-change-transform z-10 flex flex-col justify-between"
             >
-              {/* Full Video Frame */}
-              <video
-                ref={(el) => {
-                  videoRefs.current[idx] = el
-                }}
-                src={short.video_url || '/videos/sample-short-1.mp4'}
-                poster={short.thumbnail_url}
-                loop
-                playsInline
-                muted={isMuted}
-                preload="metadata"
-                onClick={() => {
-                  if (hasDragged.current) {
-                    hasDragged.current = false
-                    return
-                  }
-                  togglePlayPause()
-                }}
-                onError={(e) => {
-                  const target = e.currentTarget
-                  if (!target.src.includes('/videos/')) {
-                    target.src = '/videos/sample-short-1.mp4'
-                    try { target.load() } catch (err) {}
-                  }
-                }}
-                className="absolute inset-0 w-full h-full object-cover cursor-pointer"
-              />
+              {/* Full Video Frame: Embed (Google Drive, YouTube, Vimeo) or Direct HTML5 Video */}
+              {parsed.embedUrl ? (
+                <div className="absolute inset-0 w-full h-full bg-black overflow-hidden select-none">
+                  {isCurrent ? (
+                    <iframe
+                      src={
+                        parsed.type === 'youtube'
+                          ? `https://www.youtube-nocookie.com/embed/${parsed.embedUrl.split('/embed/')[1]?.split('?')[0]}?autoplay=1&mute=${isMuted ? 1 : 0}&loop=1&playlist=${parsed.embedUrl.split('/embed/')[1]?.split('?')[0]}&controls=1&modestbranding=1&playsinline=1&rel=0`
+                          : parsed.embedUrl
+                      }
+                      className={`border-0 w-full h-full ${
+                        parsed.type === 'gdrive'
+                          ? 'absolute -top-[52px] left-0 w-full h-[calc(100%+52px)]'
+                          : 'absolute inset-0 w-full h-full object-cover'
+                      }`}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                      allowFullScreen
+                      title={short.title}
+                    />
+                  ) : (
+                    <img
+                      src={short.thumbnail_url}
+                      alt={short.title}
+                      className="absolute inset-0 w-full h-full object-cover opacity-80"
+                    />
+                  )}
+
+                  {/* Top Protection Bar for Google Drive: Conceals and blocks Google Drive's pop-out button and title link */}
+                  {parsed.type === 'gdrive' && (
+                    <div
+                      className="absolute top-0 left-0 right-0 h-14 bg-black pointer-events-auto z-20 cursor-default select-none"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                    />
+                  )}
+                </div>
+              ) : (
+                <video
+                  ref={(el) => {
+                    videoRefs.current[idx] = el
+                  }}
+                  src={parsed.rawUrl || '/videos/sample-short-1.mp4'}
+                  poster={short.thumbnail_url}
+                  loop
+                  playsInline
+                  muted={isMuted}
+                  preload="metadata"
+                  onClick={() => {
+                    if (hasDragged.current) {
+                      hasDragged.current = false
+                      return
+                    }
+                    togglePlayPause()
+                  }}
+                  onError={(e) => {
+                    const target = e.currentTarget
+                    if (!target.src.includes('/videos/')) {
+                      target.src = '/videos/sample-short-1.mp4'
+                      try { target.load() } catch (err) {}
+                    }
+                  }}
+                  className="absolute inset-0 w-full h-full object-cover cursor-pointer"
+                />
+              )}
 
               {/* Top Gradient for text contrast */}
               <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none z-10" />
@@ -646,7 +692,14 @@ export function ShortsReelPlayer({
 
         {/* Top Floating Controls Header (Always on Top) */}
         <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4 pt-4 pointer-events-none">
-          <div className="flex items-center gap-2 pointer-events-auto">
+          <div className="flex items-center gap-2.5 pointer-events-auto">
+            <Link
+              href="/student"
+              className="p-2 rounded-full bg-black/50 hover:bg-black/80 text-white backdrop-blur-md transition-all border border-white/10 cursor-pointer shadow-sm hover:scale-105 flex items-center justify-center"
+              title="Exit Shorts / Back to Portal"
+            >
+              <ArrowLeft className="w-4 h-4 text-white" />
+            </Link>
             <span className="px-2.5 py-1 rounded-full bg-indigo-600/90 text-white font-bold text-[11px] tracking-wider uppercase flex items-center gap-1 shadow-sm">
               <Sparkles className="w-3 h-3" />
               <span>Micro-Byte</span>

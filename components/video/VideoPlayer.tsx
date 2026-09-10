@@ -45,6 +45,7 @@ export function parseVideoUrl(url: string): ParsedVideoSource {
   // - https://drive.google.com/file/d/1NZgr1TIpV5ik5Ric8Pj8b-DFacKRgKIK/view?usp=drivesdk
   // - https://drive.google.com/open?id=1NZgr1TIpV5ik5Ric8Pj8b-DFacKRgKIK
   // - https://drive.google.com/file/d/1NZgr1TIpV5ik5Ric8Pj8b-DFacKRgKIK/preview
+  // - https://drive.google.com/uc?id=1NZgr1TIpV5ik5Ric8Pj8b-DFacKRgKIK
   if (trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com')) {
     const fileIdMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/)
     if (fileIdMatch && fileIdMatch[1]) {
@@ -58,7 +59,7 @@ export function parseVideoUrl(url: string): ParsedVideoSource {
     }
   }
 
-  // 2. YouTube Links
+  // 2. YouTube Links (including YouTube Shorts)
   const ytMatch = trimmed.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)
   if (ytMatch && ytMatch[1]) {
     const videoId = ytMatch[1]
@@ -81,7 +82,32 @@ export function parseVideoUrl(url: string): ParsedVideoSource {
     }
   }
 
-  // 4. Direct video URL (MP4, WebM, Supabase Storage, etc.)
+  // 4. Dropbox Links (convert to direct raw stream)
+  if (trimmed.includes('dropbox.com')) {
+    const rawDropbox = trimmed.includes('?')
+      ? trimmed.replace(/[?&]dl=0/, '?raw=1')
+      : `${trimmed}?raw=1`
+    return {
+      type: 'direct',
+      rawUrl: rawDropbox,
+      originalUrl: trimmed
+    }
+  }
+
+  // 5. Loom Links
+  if (trimmed.includes('loom.com/share/')) {
+    const loomId = trimmed.split('loom.com/share/')[1]?.split('?')[0]
+    if (loomId) {
+      return {
+        type: 'vimeo',
+        embedUrl: `https://www.loom.com/embed/${loomId}`,
+        rawUrl: trimmed,
+        originalUrl: trimmed
+      }
+    }
+  }
+
+  // 6. Direct video URL (MP4, WebM, Supabase Storage, etc.)
   return {
     type: 'direct',
     rawUrl: trimmed,
