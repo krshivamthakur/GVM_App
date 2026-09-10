@@ -125,31 +125,20 @@ export function VideoPlayer({
 
   // If the video source is an embed (Google Drive, YouTube, Vimeo), render the dedicated embed player
   if (parsed.embedUrl) {
+    const isGDrive = parsed.type === 'gdrive'
+
     return (
-      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-2xl border border-zinc-200 dark:border-zinc-800 select-none">
+      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-2xl border border-zinc-200 dark:border-zinc-800">
         <iframe
           src={parsed.embedUrl}
-          className="w-full h-full border-0"
+          className={`border-0 ${
+            isGDrive
+              ? 'absolute -top-[58px] left-0 w-full h-[calc(100%+58px)]'
+              : 'w-full h-full'
+          }`}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
           title="Lecture Video"
-        />
-
-        {/* Top Protection Bar: Conceals and blocks Google Drive's pop-out button and title link */}
-        <div
-          className="absolute top-0 left-0 right-0 h-14 sm:h-16 bg-black pointer-events-auto z-20 cursor-default select-none"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          onMouseDown={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
         />
       </div>
     )
