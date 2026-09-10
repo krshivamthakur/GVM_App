@@ -5,6 +5,7 @@ import { Profile } from '@/types/database'
 import { approveTeacher, createUser } from '@/actions/admin-actions'
 import { formatDisplayDate } from '@/lib/utils'
 import { Check, X, Mail, Calendar, Search, UserPlus, Sparkles, BookOpen } from 'lucide-react'
+import { AvatarSelector } from '@/components/ui/AvatarSelector'
 
 export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Profile[] }) {
   const [teachers, setTeachers] = useState(initialTeachers)
@@ -17,7 +18,9 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [bio, setBio] = useState('')
+  const [avatar, setAvatar] = useState('')
   const [isCreating, setIsCreating] = useState(false)
+
 
   const handleAction = async (teacherId: string, status: 'approved' | 'rejected') => {
     setProcessingId(teacherId)
@@ -42,7 +45,7 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
         role: 'teacher',
         teacher_status: 'approved',
         bio: bio || 'Course Instructor & Educator',
-        avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80'
+        avatar_url: avatar || undefined
       })
       if (res.success && res.user) {
         setTeachers((prev) => [res.user!, ...prev])
@@ -50,12 +53,14 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
         setName('')
         setEmail('')
         setBio('')
+        setAvatar('')
       } else {
         alert(res.error || 'Failed to add teacher')
       }
     } finally {
       setIsCreating(false)
     }
+
   }
 
   const filteredTeachers = teachers.filter((t) => {
@@ -291,6 +296,13 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
                   className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
               </div>
+
+              <AvatarSelector
+                value={avatar}
+                onChange={setAvatar}
+                fallbackName={name}
+                label="Instructor Avatar (Gallery, Upload, or Link)"
+              />
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                 <button

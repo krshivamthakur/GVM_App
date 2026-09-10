@@ -13,6 +13,8 @@ import {
   Clock
 } from 'lucide-react'
 
+import { ProfileEditModal } from '@/components/profile/ProfileEditModal'
+
 export default async function StudentProfilePage() {
   const [user, enrolled] = await Promise.all([
     getCurrentUser(),
@@ -29,13 +31,17 @@ export default async function StudentProfilePage() {
   return (
     <div className="space-y-8 max-w-4xl">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight">
-          Student Profile
-        </h1>
-        <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-          Manage your personal details, learning streak, and overall achievement stats.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight">
+            Student Profile
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+            Manage your personal details, learning streak, and overall achievement stats.
+          </p>
+        </div>
+
+        <ProfileEditModal user={user} />
       </div>
 
       {/* Profile Card */}

@@ -252,3 +252,44 @@ export async function registerUser(fullName: string, email: string, role: UserRo
   revalidatePath('/', 'layout')
   return { success: true, user: newUser }
 }
+
+export async function updateCurrentUserProfile(updates: {
+  full_name?: string
+  bio?: string
+  avatar_url?: string
+}): Promise<{ success: boolean; user?: Profile; error?: string }> {
+  const current = await getCurrentUser()
+  if (!current) {
+    return { success: false, error: 'Unauthorized: Please log in to update profile' }
+  }
+
+  try {
+    const supabase = createAdminClient()
+    const { data: updated, error } = await supabase
+      .from('Profile')
+      .update(updates)
+      .eq('id', current.id)
+      .select()
+      .single()
+
+    if (!error && updated) {
+      dataStore.setActiveUser(updated)
+      dataStore.updateProfileAdmin(current.id, updates)
+      revalidatePath('/student/profile')
+      revalidatePath('/teacher/profile')
+      revalidatePath('/admin')
+      return { success: true, user: updated }
+    }
+  } catch (err: any) {
+    console.warn('Supabase updateCurrentUserProfile fallback:', err)
+  }
+
+  const localUpdated = dataStore.updateProfileAdmin(current.id, updates)
+  if (localUpdated) {
+    dataStore.setActiveUser(localUpdated)
+  }
+  revalidatePath('/student/profile')
+  revalidatePath('/teacher/profile')
+  return { success: true, user: localUpdated }
+}
+

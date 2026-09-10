@@ -16,6 +16,8 @@ import {
   GraduationCap
 } from 'lucide-react'
 
+import { ProfileEditModal } from '@/components/profile/ProfileEditModal'
+
 export const metadata: Metadata = {
   title: 'Teacher Profile | GVM EduLMS',
   description: 'Manage instructor bio, teaching credentials, and curriculum statistics.',
@@ -36,16 +38,22 @@ export default async function TeacherProfilePage() {
   const activeCourses = courses.length || 3
 
   return (
+
     <div className="space-y-8 max-w-4xl pb-12">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-          Teacher Profile
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage your instructor identity, faculty credentials, and public curriculum summary.
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
+            Teacher Profile
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Manage your instructor identity, faculty credentials, and public curriculum summary.
+          </p>
+        </div>
+
+        <ProfileEditModal user={user} />
       </div>
+
 
       {/* Profile Info Card */}
       <div className="rounded-xl border border-border bg-card p-6 sm:p-8 shadow-xs">

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Profile } from '@/types/database'
 import { createUser, updateUser, deleteUser } from '@/actions/admin-actions'
 import { formatDisplayDate } from '@/lib/utils'
+import { AvatarSelector } from '@/components/ui/AvatarSelector'
 import { 
   GraduationCap, 
   Search, 
@@ -15,8 +16,8 @@ import {
   BookOpen, 
   X, 
   Check, 
-  Sparkles,
-  ShieldAlert
+  Sparkles, 
+  ShieldAlert 
 } from 'lucide-react'
 
 interface StudentDirectoryTableProps {
@@ -32,13 +33,16 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
   const [createName, setCreateName] = useState('')
   const [createEmail, setCreateEmail] = useState('')
   const [createBio, setCreateBio] = useState('')
+  const [createAvatar, setCreateAvatar] = useState('')
   const [isCreating, setIsCreating] = useState(false)
 
   // Edit Student Modal State
   const [editingStudent, setEditingStudent] = useState<Profile | null>(null)
   const [editName, setEditName] = useState('')
   const [editBio, setEditBio] = useState('')
+  const [editAvatar, setEditAvatar] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+
 
   // Deleting State
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -67,7 +71,7 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
         email: createEmail,
         role: 'student',
         bio: createBio || 'Student learner',
-        avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+        avatar_url: createAvatar || undefined
       })
 
       if (res.success && res.user) {
@@ -76,6 +80,7 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
         setCreateName('')
         setCreateEmail('')
         setCreateBio('')
+        setCreateAvatar('')
       } else {
         alert(res.error || 'Failed to create student account')
       }
@@ -89,6 +94,7 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
     setEditingStudent(student)
     setEditName(student.full_name || '')
     setEditBio(student.bio || '')
+    setEditAvatar(student.avatar_url || '')
   }
 
   // Handle Save Edit
@@ -100,7 +106,8 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
     try {
       const res = await updateUser(editingStudent.id, {
         full_name: editName,
-        bio: editBio
+        bio: editBio,
+        avatar_url: editAvatar || undefined
       })
 
       if (res.success && res.user) {
@@ -109,6 +116,7 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
       } else {
         alert(res.error || 'Failed to update student profile')
       }
+
     } finally {
       setIsSaving(false)
     }
@@ -322,6 +330,13 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
                 />
               </div>
 
+              <AvatarSelector
+                value={createAvatar}
+                onChange={setCreateAvatar}
+                fallbackName={createName}
+                label="Student Avatar (Gallery, Upload, or Link)"
+              />
+
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                 <button
                   type="button"
@@ -385,6 +400,13 @@ export function StudentDirectoryTable({ initialStudents }: StudentDirectoryTable
                   className="w-full px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
+
+              <AvatarSelector
+                value={editAvatar}
+                onChange={setEditAvatar}
+                fallbackName={editName}
+                label="Student Avatar (Gallery, Upload, or Link)"
+              />
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-100 dark:border-zinc-800">
                 <button
