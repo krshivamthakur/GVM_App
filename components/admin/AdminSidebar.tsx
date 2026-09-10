@@ -18,11 +18,13 @@ export function AdminSidebar() {
 
   const links = [
     { href: '/admin', label: 'Platform Overview', icon: LayoutDashboard, exact: true },
+    { href: '/admin/courses', label: 'Course Management', icon: BookOpenCheck },
+    { href: '/admin/shorts', label: 'Shorts Studio', icon: BarChart },
     { href: '/admin/users', label: 'User Management', icon: ShieldCheck },
     { href: '/admin/teachers', label: 'Teachers Pipeline', icon: UserCheck },
     { href: '/admin/students', label: 'Student Directory', icon: GraduationCap },
-    { href: '/admin/courses', label: 'Course Directory', icon: BookOpenCheck },
-    { href: '/admin/reports', label: 'System Analytics', icon: BarChart },
+    { href: '/admin/notifications', label: 'Broadcasts', icon: ShieldCheck },
+    { href: '/admin/reports', label: 'System Reports', icon: BarChart },
   ]
 
   return (

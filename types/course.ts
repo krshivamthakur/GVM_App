@@ -7,6 +7,7 @@ export interface CourseFormData {
   thumbnail_url?: string
   status: CourseStatus
   price?: number
+  teacher_id?: string
 }
 
 export interface CourseFilterParams {

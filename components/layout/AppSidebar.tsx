@@ -70,22 +70,24 @@ export function AppSidebar({ isCollapsed, onToggleCollapse, isMobile = false }: 
           items: [
             { title: 'Dashboard', href: '/admin', icon: LayoutDashboard, exact: true },
             { title: 'Platform Analytics', href: '/admin/analytics', icon: BarChart3 },
+            { title: 'System Reports', href: '/admin/reports', icon: Sparkles },
           ]
         },
         {
           label: 'Management',
           items: [
+            { title: 'Course Management', href: '/admin/courses', icon: BookOpen, badge: 'Full CRUD' },
+            { title: 'Shorts Studio', href: '/admin/shorts', icon: Flame, badge: 'Studio' },
             { title: 'User Management', href: '/admin/users', icon: ShieldCheck, badge: 'All' },
             { title: 'Teachers Pipeline', href: '/admin/teachers', icon: UserCheck, badge: 'Review' },
             { title: 'Student Directory', href: '/admin/students', icon: GraduationCap },
-            { title: 'Course Catalogue', href: '/admin/courses', icon: BookOpen },
             { title: 'Notifications', href: '/admin/notifications', icon: Bell, badge: 'Broadcast' },
           ]
         },
         {
-          label: 'Shorts & Engagement',
+          label: 'Learner Experience',
           items: [
-            { title: 'Shorts Studio', href: '/shorts', icon: Flame, badge: 'Live' },
+            { title: 'Explore Shorts Feed', href: '/shorts', icon: Video, badge: 'Live' },
           ]
         },
         {

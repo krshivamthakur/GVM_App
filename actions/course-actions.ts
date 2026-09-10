@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/actions/auth-actions'
 import { dataStore } from '@/lib/data/store'
 import { Course, CourseWithCurriculum, ChapterWithLectures } from '@/types/database'
 import { CourseFormData } from '@/types/course'
@@ -58,7 +59,10 @@ export async function getCourses(category?: string, search?: string): Promise<Co
 }
 
 export async function getTeacherCourses(teacherId?: string): Promise<Course[]> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
+  if (activeUser.role === 'admin' && !teacherId) {
+    return getAllCoursesAdmin()
+  }
   const targetId = teacherId || activeUser.id
 
   try {
@@ -150,7 +154,7 @@ export async function getCourseById(
   courseId: string,
   studentId?: string
 ): Promise<CourseWithCurriculum | null> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
   const targetStudentId = activeUser.role === 'student' ? activeUser.id : (studentId || activeUser.id)
 
   try {
@@ -248,11 +252,12 @@ export async function getCourseById(
 }
 
 export async function createCourse(data: CourseFormData): Promise<{ success: boolean; course?: Course; error?: string }> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
   if (activeUser.role === 'student') {
     return { success: false, error: 'Access denied: Students cannot create courses.' }
   }
   const newCourseId = `00000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`
+  const targetTeacherId = data.teacher_id || activeUser.id
 
   try {
     const supabase = createAdminClient()
@@ -260,7 +265,7 @@ export async function createCourse(data: CourseFormData): Promise<{ success: boo
       .from('courses')
       .insert({
         id: newCourseId,
-        teacher_id: activeUser.id,
+        teacher_id: targetTeacherId,
         title: data.title,
         description: data.description || '',
         category: data.category || 'General',
@@ -279,6 +284,8 @@ export async function createCourse(data: CourseFormData): Promise<{ success: boo
       })
 
       dataStore.createCourse(newCourse)
+      revalidatePath('/admin/courses')
+      revalidatePath('/admin')
       revalidatePath('/teacher/courses')
       revalidatePath('/student/courses')
       return { success: true, course: newCourse }
@@ -288,7 +295,7 @@ export async function createCourse(data: CourseFormData): Promise<{ success: boo
   }
 
   const fallback = dataStore.createCourse({
-    teacher_id: activeUser.id,
+    teacher_id: targetTeacherId,
     title: data.title,
     description: data.description || '',
     category: data.category || 'General',
@@ -297,6 +304,8 @@ export async function createCourse(data: CourseFormData): Promise<{ success: boo
     price: data.price || 0
   })
 
+  revalidatePath('/admin/courses')
+  revalidatePath('/admin')
   revalidatePath('/teacher/courses')
   revalidatePath('/student/courses')
   return { success: true, course: fallback }
@@ -306,7 +315,7 @@ export async function updateCourse(
   courseId: string,
   data: Partial<CourseFormData>
 ): Promise<{ success: boolean; course?: Course; error?: string }> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
   if (activeUser.role === 'student') {
     return { success: false, error: 'Access denied: Students cannot update courses.' }
   }
@@ -325,6 +334,8 @@ export async function updateCourse(
 
     if (updated) {
       dataStore.updateCourse(courseId, data)
+      revalidatePath('/admin/courses')
+      revalidatePath('/admin')
       revalidatePath(`/teacher/courses/${courseId}`)
       revalidatePath('/teacher/courses')
       revalidatePath(`/student/courses/${courseId}`)
@@ -335,16 +346,18 @@ export async function updateCourse(
   }
 
   const localUpdated = dataStore.updateCourse(courseId, data)
+  revalidatePath('/admin/courses')
+  revalidatePath('/admin')
   revalidatePath(`/teacher/courses/${courseId}`)
   revalidatePath('/teacher/courses')
   revalidatePath(`/student/courses/${courseId}`)
   return { success: !!localUpdated, course: localUpdated || undefined }
 }
 
-export async function deleteCourse(courseId: string): Promise<{ success: boolean }> {
-  const activeUser = dataStore.getActiveUser()
+export async function deleteCourse(courseId: string): Promise<{ success: boolean; error?: string }> {
+  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
   if (activeUser.role === 'student') {
-    return { success: false }
+    return { success: false, error: 'Unauthorized: Student cannot delete courses' }
   }
 
   try {
@@ -355,13 +368,16 @@ export async function deleteCourse(courseId: string): Promise<{ success: boolean
   }
 
   const success = dataStore.deleteCourse(courseId)
+  revalidatePath('/admin/courses')
+  revalidatePath('/admin')
   revalidatePath('/teacher/courses')
   revalidatePath('/student/courses')
   return { success }
 }
 
+
 export async function toggleCoursePublish(courseId: string): Promise<{ success: boolean; status?: string }> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
   if (activeUser.role === 'student') {
     return { success: false }
   }
@@ -380,6 +396,8 @@ export async function toggleCoursePublish(courseId: string): Promise<{ success: 
   }
 
   dataStore.updateCourse(courseId, { status: newStatus })
+  revalidatePath('/admin/courses')
+  revalidatePath('/admin')
   revalidatePath('/teacher/courses')
   revalidatePath('/student/courses')
   return { success: true, status: newStatus }

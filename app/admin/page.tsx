@@ -60,6 +60,14 @@ export default async function AdminDashboardPage() {
           </div>
 
           <Link
+            href="/admin/courses"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            <span>Manage Courses</span>
+          </Link>
+
+          <Link
             href="/admin/teachers"
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-semibold shadow-xs hover:bg-primary/90 transition-colors"
           >
@@ -71,30 +79,30 @@ export default async function AdminDashboardPage() {
 
       {/* Segmented Tabs Bar (Overview, Analytics, Reports, Notifications) */}
       <div className="flex items-center gap-1 p-1 rounded-lg bg-muted border border-border w-fit">
-        <button
-          type="button"
+        <Link
+          href="/admin"
           className="px-3 py-1 rounded-md text-xs font-medium bg-background text-foreground shadow-xs"
         >
           Overview
-        </button>
-        <button
-          type="button"
+        </Link>
+        <Link
+          href="/admin/analytics"
           className="px-3 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           Analytics
-        </button>
-        <button
-          type="button"
+        </Link>
+        <Link
+          href="/admin/reports"
           className="px-3 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           Reports
-        </button>
-        <button
-          type="button"
+        </Link>
+        <Link
+          href="/admin/notifications"
           className="px-3 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           Notifications
-        </button>
+        </Link>
       </div>
 
       {/* 4 Metric KPI Cards in a row */}

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
 import { ShortVideo, ShortComment } from '@/types/database'
+import { getCurrentUser } from '@/actions/auth-actions'
 
 export async function getShortVideos(tag?: string, search?: string): Promise<ShortVideo[]> {
   try {
@@ -285,7 +286,8 @@ export async function createShortVideoAction(formData: FormData): Promise<{ succ
       }
     }
 
-    const activeUser = dataStore.getActiveUser()
+    const user = await getCurrentUser()
+    const activeUser = user || dataStore.getActiveUser()
 
     // Try Supabase insert
     try {
@@ -320,6 +322,8 @@ export async function createShortVideoAction(formData: FormData): Promise<{ succ
 
         revalidatePath('/shorts')
         revalidatePath('/teacher/shorts')
+        revalidatePath('/admin/shorts')
+        revalidatePath('/admin')
         revalidatePath('/student')
         revalidatePath('/')
 
@@ -340,6 +344,8 @@ export async function createShortVideoAction(formData: FormData): Promise<{ succ
 
     revalidatePath('/shorts')
     revalidatePath('/teacher/shorts')
+    revalidatePath('/admin/shorts')
+    revalidatePath('/admin')
     revalidatePath('/student')
     revalidatePath('/')
 
@@ -347,6 +353,42 @@ export async function createShortVideoAction(formData: FormData): Promise<{ succ
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to create short' }
   }
+}
+
+export async function getAllShortsAdmin(): Promise<ShortVideo[]> {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('shorts')
+      .select('*, teacher:Profile(*), likes:short_likes(*)')
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      return data.map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        description: s.description || '',
+        video_url: s.video_url,
+        thumbnail_url: s.thumbnail_url || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&auto=format&fit=crop&q=80',
+        duration: s.duration || 45,
+        teacher_id: s.teacher_id,
+        teacher: s.teacher,
+        course_id: s.course_id,
+        course_title: s.course_title,
+        views_count: s.views_count || 0,
+        likes_count: s.likes?.length ?? s.likes_count ?? 0,
+        is_liked: false,
+        is_saved: false,
+        tags: s.tags || [],
+        created_at: s.created_at,
+        comments: []
+      }))
+    }
+  } catch (err) {
+    console.warn('Supabase getAllShortsAdmin fallback:', err)
+  }
+
+  return dataStore.getShorts()
 }
 
 export async function deleteShortVideoAction(id: string): Promise<boolean> {
@@ -360,5 +402,8 @@ export async function deleteShortVideoAction(id: string): Promise<boolean> {
   const ok = dataStore.deleteShort(id)
   revalidatePath('/shorts')
   revalidatePath('/teacher/shorts')
+  revalidatePath('/admin/shorts')
+  revalidatePath('/admin')
   return ok
 }
+
