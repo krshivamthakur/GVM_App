@@ -104,7 +104,7 @@ export async function getTeacherCourses(teacherId?: string): Promise<Course[]> {
     console.warn('Supabase getTeacherCourses fallback:', err)
   }
 
-  return dataStore.getCoursesByTeacher(targetId)
+  return []
 }
 
 export async function getAllCoursesAdmin(): Promise<Course[]> {

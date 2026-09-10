@@ -239,35 +239,50 @@ export async function approveTeacher(teacherId: string, status: 'approved' | 're
 }
 
 export async function getTeacherStudents(teacherId?: string) {
-  const activeUser = dataStore.getActiveUser()
-  const targetId = teacherId || activeUser.id
+  const targetId = teacherId || dataStore.getActiveUser().id
 
   try {
     const supabase = createAdminClient()
-    const { data: students } = await supabase
-      .from('Profile')
-      .select('*')
-      .eq('role', 'student')
-
     const { data: teacherCourses } = await supabase
       .from('courses')
-      .select('*')
+      .select('id, title, status')
       .eq('teacher_id', targetId)
 
-    if (students && students.length > 0 && teacherCourses && teacherCourses.length > 0) {
-      return students.map((std: any, idx: number) => ({
-        enrollmentId: `enr-${std.id}-${idx}`,
-        student: std,
-        course: teacherCourses[0],
-        enrolledAt: std.created_at || new Date().toISOString(),
-        progressPercentage: 50,
-        completedLectures: 1,
-        totalLectures: 2
-      }))
+    if (!teacherCourses || teacherCourses.length === 0) {
+      return []
     }
-  } catch (err) {
-    console.warn('Supabase getTeacherStudents fallback:', err)
-  }
 
-  return dataStore.getEnrolledStudentsForTeacher(targetId)
+    const courseIds = teacherCourses.map((c) => c.id)
+
+    const { data: enrollments } = await supabase
+      .from('enrollments')
+      .select('*')
+      .in('course_id', courseIds)
+
+    if (!enrollments || enrollments.length === 0) {
+      return []
+    }
+
+    const studentIds = [...new Set(enrollments.map((e) => e.student_id))]
+    const { data: studentProfiles } = await supabase
+      .from('Profile')
+      .select('*')
+      .in('id', studentIds)
+
+    const profilesMap = new Map((studentProfiles || []).map((p) => [p.id, p]))
+    const coursesMap = new Map(teacherCourses.map((c) => [c.id, c]))
+
+    return enrollments.map((enr: any) => ({
+      enrollmentId: enr.id,
+      student: profilesMap.get(enr.student_id) || { id: enr.student_id, full_name: 'Student', email: '' },
+      course: coursesMap.get(enr.course_id) || teacherCourses[0],
+      enrolledAt: enr.enrolled_at || enr.created_at || new Date().toISOString(),
+      progressPercentage: 0,
+      completedLectures: 0,
+      totalLectures: 0
+    }))
+  } catch (err) {
+    console.warn('Supabase getTeacherStudents exception:', err)
+    return []
+  }
 }

@@ -25,8 +25,8 @@ export default async function TeacherAnalyticsPage() {
     getTeacherStudents()
   ])
 
-  const totalStudents = students.length || 24
-  const publishedCourses = courses.filter((c) => c.status === 'published').length || courses.length
+  const totalStudents = students.length
+  const publishedCourses = courses.filter((c) => c.status === 'published').length
 
   return (
     <div className="space-y-6 max-w-7xl pb-12">
