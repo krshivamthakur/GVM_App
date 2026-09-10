@@ -22,7 +22,7 @@ export async function getAdminPlatformStats() {
       supabase.from('lectures').select('*', { count: 'exact', head: true })
     ])
 
-    if (totalCourses !== null && totalCourses > 0) {
+    if (totalStudents !== null && totalTeachers !== null) {
       return {
         totalStudents: totalStudents || 0,
         totalTeachers: totalTeachers || 0,
@@ -48,7 +48,7 @@ export async function getAllUsers(role?: string): Promise<Profile[]> {
       query = query.eq('role', role)
     }
     const { data, error } = await query
-    if (!error && data && data.length > 0) {
+    if (!error && data) {
       return data
     }
   } catch (err) {

@@ -124,9 +124,15 @@ export function TeacherApprovalList({ initialTeachers }: { initialTeachers: Prof
         </div>
 
       <div className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
-        {teachers.length === 0 ? (
-          <div className="p-8 text-center text-xs text-zinc-500">No teacher records found.</div>
+        {filteredTeachers.length === 0 ? (
+          <div className="p-12 text-center text-xs text-zinc-500 space-y-2">
+            <p className="font-semibold text-sm text-zinc-700 dark:text-zinc-300">No teachers found</p>
+            <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+              Only registered users with the role &quot;teacher&quot; appear in this verification pipeline. You can add a teacher using the &quot;Add Teacher&quot; button above.
+            </p>
+          </div>
         ) : (
+
           filteredTeachers.map((teacher) => {
             const isPending = teacher.teacher_status === 'pending'
             const isApproved = teacher.teacher_status === 'approved'
