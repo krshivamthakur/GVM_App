@@ -38,7 +38,6 @@ export function Navbar() {
     !pathname ||
     pathname === '/' ||
     pathname.startsWith('/login') ||
-    pathname.startsWith('/register') ||
     pathname.startsWith('/forgot-password') ||
     pathname.startsWith('/student') ||
     pathname.startsWith('/teacher') ||

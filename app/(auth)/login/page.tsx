@@ -6,15 +6,12 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { loginUser } from '@/actions/auth-actions'
 import { 
-  GraduationCap, 
   ArrowRight, 
   Lock, 
   Mail, 
   AlertCircle, 
   Eye, 
-  EyeOff, 
-  ShieldCheck,
-  Info
+  EyeOff 
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
@@ -25,7 +22,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
-  const [showHint, setShowHint] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,12 +49,6 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  const fillQuickCredential = (roleEmail: string) => {
-    setEmail(roleEmail)
-    setPassword('password123')
-    setErrorMsg('')
   }
 
   return (
@@ -154,68 +144,6 @@ export default function LoginPage() {
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
-
-          {/* Quick Credential Helper Accordion */}
-          <div className="pt-2 border-t border-zinc-100 dark:border-zinc-800">
-            <button
-              type="button"
-              onClick={() => setShowHint(!showHint)}
-              className="w-full flex items-center justify-between text-[11px] text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300 font-medium py-1 transition-colors"
-            >
-              <span className="flex items-center gap-1.5">
-                <Info className="w-3.5 h-3.5 text-indigo-500" />
-                <span>View Registered Demo Accounts</span>
-              </span>
-              <span>{showHint ? '▲ Hide' : '▼ View'}</span>
-            </button>
-
-            {showHint && (
-              <div className="mt-2.5 p-3 rounded-xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-2 text-[11px] animate-in fade-in">
-                <p className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">
-                  Click to auto-fill ID & Password:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => fillQuickCredential('admin@example.com')}
-                    className="p-1.5 text-left rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-rose-300 hover:bg-rose-50/40 dark:hover:bg-rose-950/30 transition-all"
-                  >
-                    <div className="font-bold text-rose-600 dark:text-rose-400">Admin</div>
-                    <div className="text-[10px] text-zinc-500 truncate">admin@example.com</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => fillQuickCredential('teacher@example.com')}
-                    className="p-1.5 text-left rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-purple-300 hover:bg-purple-50/40 dark:hover:bg-purple-950/30 transition-all"
-                  >
-                    <div className="font-bold text-purple-600 dark:text-purple-400">Teacher</div>
-                    <div className="text-[10px] text-zinc-500 truncate">teacher@example.com</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => fillQuickCredential('student@example.com')}
-                    className="p-1.5 text-left rounded-lg bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:border-blue-300 hover:bg-blue-50/40 dark:hover:bg-blue-950/30 transition-all"
-                  >
-                    <div className="font-bold text-blue-600 dark:text-blue-400">Student</div>
-                    <div className="text-[10px] text-zinc-500 truncate">student@example.com</div>
-                  </button>
-                </div>
-                <p className="text-[10px] text-zinc-400 italic">
-                  Password: minimum 4 characters (e.g. <code>password123</code>).
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Register Link */}
-          <div className="text-center text-xs text-zinc-500 pt-1">
-            Don&apos;t have an account yet?{' '}
-            <Link href="/register" className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline">
-              Create Account
-            </Link>
-          </div>
         </div>
       </div>
     </div>
