@@ -19,7 +19,8 @@ export async function getCourses(category?: string, search?: string): Promise<Co
     }
 
     const { data: rawCourses, error } = await query
-    if (!error && rawCourses && rawCourses.length > 0) {
+    if (!error && rawCourses) {
+      if (rawCourses.length === 0) return []
       const courseIds = rawCourses.map((c) => c.id)
       const teacherIds = [...new Set(rawCourses.map((c) => c.teacher_id).filter(Boolean))]
 
@@ -67,7 +68,8 @@ export async function getTeacherCourses(teacherId?: string): Promise<Course[]> {
       .select('*')
       .eq('teacher_id', targetId)
 
-    if (!error && rawCourses && rawCourses.length > 0) {
+    if (!error && rawCourses) {
+      if (rawCourses.length === 0) return []
       const courseIds = rawCourses.map((c) => c.id)
       const [teacherRes, chaptersRes] = await Promise.all([
         supabase.from('Profile').select('*').eq('id', targetId).maybeSingle(),
@@ -106,7 +108,8 @@ export async function getAllCoursesAdmin(): Promise<Course[]> {
     const supabase = createAdminClient()
     const { data: rawCourses, error } = await supabase.from('courses').select('*')
 
-    if (!error && rawCourses && rawCourses.length > 0) {
+    if (!error && rawCourses) {
+      if (rawCourses.length === 0) return []
       const courseIds = rawCourses.map((c) => c.id)
       const teacherIds = [...new Set(rawCourses.map((c) => c.teacher_id).filter(Boolean))]
 

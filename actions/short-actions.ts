@@ -47,7 +47,8 @@ export async function getShortVideos(tag?: string, search?: string): Promise<Sho
       error = fallbackResult.error
     }
 
-    if (!error && data && data.length > 0) {
+    if (!error && data) {
+      if (data.length === 0) return []
       const activeUser = dataStore.getActiveUser()
       return data.map((s: any) => ({
         id: s.id,
