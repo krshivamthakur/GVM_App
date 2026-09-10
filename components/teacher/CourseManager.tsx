@@ -445,17 +445,17 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
               {/* Video URL / Source */}
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Video Stream URL (MP4 / Supabase Storage)
+                  Lecture Video Link (Google Drive, YouTube, Vimeo, or MP4)
                 </label>
                 <input
                   type="text"
-                  placeholder="/videos/sample-short-1.mp4"
+                  placeholder="e.g. https://drive.google.com/file/d/.../view or YouTube / MP4 URL"
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm font-mono text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
                 <span className="text-[11px] text-zinc-400 mt-1 block">
-                  Leave empty to use high-definition sample educational stream automatically.
+                  Paste Google Drive shared links, YouTube videos, Vimeo streams, or direct MP4 files.
                 </span>
               </div>
 

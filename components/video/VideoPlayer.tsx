@@ -12,7 +12,9 @@ import {
   Minimize, 
   Settings,
   CheckCircle,
-  Loader2
+  Loader2,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react'
 import { useProgress } from '@/hooks/useProgress'
 
@@ -25,6 +27,69 @@ interface VideoPlayerProps {
   onEnded?: () => void
 }
 
+export interface ParsedVideoSource {
+  type: 'gdrive' | 'youtube' | 'vimeo' | 'direct'
+  embedUrl?: string
+  rawUrl: string
+  originalUrl: string
+}
+
+export function parseVideoUrl(url: string): ParsedVideoSource {
+  if (!url || typeof url !== 'string') {
+    return { type: 'direct', rawUrl: '/videos/sample-short-1.mp4', originalUrl: '' }
+  }
+
+  const trimmed = url.trim()
+
+  // 1. Google Drive Links
+  // Handles:
+  // - https://drive.google.com/file/d/1NZgr1TIpV5ik5Ric8Pj8b-DFacKRgKIK/view?usp=drivesdk
+  // - https://drive.google.com/open?id=1NZgr1TIpV5ik5Ric8Pj8b-DFacKRgKIK
+  // - https://drive.google.com/file/d/1NZgr1TIpV5ik5Ric8Pj8b-DFacKRgKIK/preview
+  if (trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com')) {
+    const fileIdMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/)
+    if (fileIdMatch && fileIdMatch[1]) {
+      const fileId = fileIdMatch[1]
+      return {
+        type: 'gdrive',
+        embedUrl: `https://drive.google.com/file/d/${fileId}/preview`,
+        rawUrl: trimmed,
+        originalUrl: trimmed
+      }
+    }
+  }
+
+  // 2. YouTube Links
+  const ytMatch = trimmed.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/)
+  if (ytMatch && ytMatch[1]) {
+    const videoId = ytMatch[1]
+    return {
+      type: 'youtube',
+      embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&autoplay=0&enablejsapi=1`,
+      rawUrl: trimmed,
+      originalUrl: trimmed
+    }
+  }
+
+  // 3. Vimeo Links
+  const vimeoMatch = trimmed.match(/(?:vimeo\.com\/)(\d+)/)
+  if (vimeoMatch && vimeoMatch[1]) {
+    return {
+      type: 'vimeo',
+      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}`,
+      rawUrl: trimmed,
+      originalUrl: trimmed
+    }
+  }
+
+  // 4. Direct video URL (MP4, WebM, Supabase Storage, etc.)
+  return {
+    type: 'direct',
+    rawUrl: trimmed,
+    originalUrl: trimmed
+  }
+}
+
 export function VideoPlayer({
   videoUrl,
   lectureId,
@@ -33,6 +98,7 @@ export function VideoPlayer({
   onToggleComplete,
   onEnded
 }: VideoPlayerProps) {
+  const parsed = parseVideoUrl(videoUrl)
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const { saveProgress } = useProgress(lectureId, initialSeconds)
@@ -46,9 +112,32 @@ export function VideoPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showControls, setShowControls] = useState(true)
   const [isLoading, setIsLoading] = useState(true)
+  const [hasError, setHasError] = useState(false)
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false)
 
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // When video is an embed (Google Drive, YouTube, Vimeo), track progress on mount
+  useEffect(() => {
+    if (parsed.embedUrl) {
+      saveProgress(30, isCompleted)
+    }
+  }, [parsed.embedUrl])
+
+  // If the video source is an embed (Google Drive, YouTube, Vimeo), render the dedicated embed player
+  if (parsed.embedUrl) {
+    return (
+      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-2xl border border-zinc-200 dark:border-zinc-800">
+        <iframe
+          src={parsed.embedUrl}
+          className="w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+          allowFullScreen
+          title="Lecture Video"
+        />
+      </div>
+    )
+  }
 
   // Initialize playback position once video metadata is loaded
   const handleLoadedMetadata = () => {
@@ -178,16 +267,39 @@ export function VideoPlayer({
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleVideoEnded}
         onClick={togglePlay}
-        onError={(e) => {
-          const target = e.currentTarget
-          if (!target.src.includes('/videos/')) {
-            target.src = '/videos/sample-short-1.mp4'
-            try { target.load() } catch (err) {}
-          }
+        onError={() => {
+          setIsLoading(false)
+          setHasError(true)
         }}
         className="h-full w-full object-contain cursor-pointer"
         playsInline
       />
+
+      {/* Error Overlay */}
+      {hasError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/95 text-white p-6 text-center space-y-3 z-30">
+          <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <div>
+            <h4 className="font-bold text-sm">Unable to Stream Video</h4>
+            <p className="text-xs text-zinc-400 mt-1 max-w-sm">
+              The direct video stream could not be loaded by your browser. Please check the URL or open it directly.
+            </p>
+          </div>
+          {parsed.originalUrl && (
+            <a
+              href={parsed.originalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md"
+            >
+              <span>Open Video in New Tab</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </div>
+      )}
 
       {/* Loading Spinner */}
       {isLoading && (
