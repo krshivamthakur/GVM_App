@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
 import { Profile, UserRole } from '@/types/database'
+import { createCometChatUserServer } from '@/lib/cometchat-server'
 
 export async function getCurrentUser(): Promise<Profile | null> {
   try {
@@ -49,10 +50,7 @@ export async function getCurrentUser(): Promise<Profile | null> {
     console.warn('getCurrentUser cookie read error:', err)
   }
 
-  // Check fallback activeUser if dev session exists
-  const active = dataStore.getActiveUser()
-  if (active) return active
-
+  // When no auth session cookie is present, user is unauthenticated
   return null
 }
 
@@ -255,6 +253,14 @@ export async function logoutUser() {
   } catch (err) {
     console.warn('Logout cookie delete error:', err)
   }
+
+  try {
+    const supabase = createAdminClient()
+    await supabase.auth.signOut()
+  } catch (e) {
+    // Supabase auth sign-out fallback
+  }
+
   revalidatePath('/', 'layout')
   return { success: true }
 }
@@ -294,6 +300,13 @@ export async function registerUser(fullName: string, email: string, role: UserRo
   dataStore.getAllProfilesAdmin().unshift(newUser)
   dataStore.setActiveUser(newUser)
 
+  // Auto-create corresponding chat user in CometChat cloud
+  try {
+    await createCometChatUserServer(newUser)
+  } catch (chatErr) {
+    console.warn('Auto create CometChat user warning in registerUser:', chatErr)
+  }
+
   try {
     const cookieStore = await cookies()
     cookieStore.set('auth_user_id', newUser.id, {
@@ -313,6 +326,7 @@ export async function registerUser(fullName: string, email: string, role: UserRo
   }
 
   revalidatePath('/', 'layout')
+  revalidatePath('/admin/chat')
   return { success: true, user: newUser }
 }
 

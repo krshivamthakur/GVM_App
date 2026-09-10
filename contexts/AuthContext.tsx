@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { Profile, UserRole } from '@/types/database'
-import { getCurrentUser, switchRole as serverSwitchRole } from '@/actions/auth-actions'
+import { getCurrentUser, switchRole as serverSwitchRole, logoutUser } from '@/actions/auth-actions'
 
 interface AuthContextValue {
   user: Profile | null
@@ -14,6 +14,7 @@ interface AuthContextValue {
   switchRole: (newRole: UserRole) => Promise<Profile | null>
   setUser: (user: Profile | null) => void
   refreshUser: () => Promise<void>
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -25,7 +26,8 @@ const AuthContext = createContext<AuthContextValue>({
   loading: true,
   switchRole: async () => null,
   setUser: () => {},
-  refreshUser: async () => {}
+  refreshUser: async () => {},
+  logout: async () => {}
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -58,6 +60,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const logout = async () => {
+    setLoading(true)
+    try {
+      await logoutUser()
+      try {
+        const { logoutCometChat } = await import('@/lib/cometchat')
+        await logoutCometChat()
+      } catch {
+        // CometChat logout fallback
+      }
+      setUser(null)
+    } finally {
+      // Force full navigation to clean up all client-side sessions
+      window.location.href = '/login'
+    }
+  }
+
   const role: UserRole = user?.role || 'student'
   const isStudent = role === 'student'
   const isTeacher = role === 'teacher' || role === 'admin'
@@ -74,7 +93,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         switchRole,
         setUser,
-        refreshUser
+        refreshUser,
+        logout
       }}
     >
       {children}

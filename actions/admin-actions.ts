@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
 import { Profile, UserRole, TeacherStatus } from '@/types/database'
+import { createCometChatUserServer } from '@/lib/cometchat-server'
 
 export async function getAdminPlatformStats() {
   try {
@@ -116,11 +117,19 @@ export async function createUser(data: CreateUserData): Promise<{ success: boole
     }
 
     if (!error && created) {
+      // Auto-create corresponding chat user in CometChat cloud
+      try {
+        await createCometChatUserServer(created)
+      } catch (chatErr) {
+        console.warn('Auto create CometChat user warning:', chatErr)
+      }
+
       dataStore.getAllProfilesAdmin().unshift(created)
       revalidatePath('/admin')
       revalidatePath('/admin/users')
       revalidatePath('/admin/students')
       revalidatePath('/admin/teachers')
+      revalidatePath('/admin/chat')
       return { success: true, user: created }
     }
     if (error) {
@@ -132,11 +141,19 @@ export async function createUser(data: CreateUserData): Promise<{ success: boole
     return { success: false, error: err.message || 'Failed to create user' }
   }
 
+  // Auto-create corresponding chat user in CometChat cloud (local store fallback)
+  try {
+    await createCometChatUserServer(newProfile)
+  } catch (chatErr) {
+    console.warn('Auto create CometChat user warning:', chatErr)
+  }
+
   dataStore.getAllProfilesAdmin().unshift(newProfile)
   revalidatePath('/admin')
   revalidatePath('/admin/users')
   revalidatePath('/admin/students')
   revalidatePath('/admin/teachers')
+  revalidatePath('/admin/chat')
   return { success: true, user: newProfile }
 }
 

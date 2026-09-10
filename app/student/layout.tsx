@@ -9,7 +9,7 @@ export default async function StudentLayout({
 }) {
   const user = await getCurrentUser()
   if (!user) {
-    redirect('/')
+    redirect('/login')
   }
 
   return <DashboardShell>{children}</DashboardShell>

@@ -22,7 +22,7 @@ import { NotificationBellPopover } from '@/components/notifications/Notification
 
 export function Navbar() {
   const pathname = usePathname()
-  const { user, role, isStudent, isTeacher, isAdmin } = useAuth()
+  const { user, role, isStudent, isTeacher, isAdmin, logout } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -200,6 +200,16 @@ export function Navbar() {
                   Courses Moderation
                 </Link>
                 <Link
+                  href="/admin/chat"
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    pathname.startsWith('/admin/chat')
+                      ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
+                      : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 dark:text-zinc-400 dark:hover:text-zinc-50'
+                  }`}
+                >
+                  Chat & Moderation
+                </Link>
+                <Link
                   href="/shorts"
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                     pathname === '/shorts'
@@ -256,13 +266,15 @@ export function Navbar() {
               </span>
             </Link>
 
-            <Link
-              href="/login"
-              title="Sign in / Sign out"
-              className="p-2 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            <button
+              type="button"
+              onClick={logout}
+              title="Sign Out"
+              aria-label="Sign Out"
+              className="p-2 text-zinc-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
-            </Link>
+            </button>
           </div>
 
           {/* Mobile menu trigger */}
@@ -374,6 +386,13 @@ export function Navbar() {
                 className="block px-3 py-2 rounded-md text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
               >
                 Courses Directory
+              </Link>
+              <Link
+                href="/admin/chat"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-3 py-2 rounded-md text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              >
+                Chat & Moderation
               </Link>
             </>
           )}

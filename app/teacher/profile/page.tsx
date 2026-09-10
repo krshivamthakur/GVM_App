@@ -27,7 +27,7 @@ export default async function TeacherProfilePage() {
   const user = await getCurrentUser()
 
   if (!user) {
-    redirect('/')
+    redirect('/login')
   }
 
   const [courses, students] = await Promise.all([

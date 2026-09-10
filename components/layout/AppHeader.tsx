@@ -16,7 +16,6 @@ import {
 } from 'lucide-react'
 
 import { NotificationBellPopover } from '@/components/notifications/NotificationBellPopover'
-import { logoutUser } from '@/actions/auth-actions'
 
 interface AppHeaderProps {
   onToggleSidebar: () => void
@@ -24,7 +23,7 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ onToggleSidebar, onToggleMobileMenu }: AppHeaderProps) {
-  const { user, role, switchRole } = useAuth()
+  const { user, role, switchRole, logout } = useAuth()
   const [profileOpen, setProfileOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
 
@@ -147,10 +146,9 @@ export function AppHeader({ onToggleSidebar, onToggleMobileMenu }: AppHeaderProp
                   type="button"
                   onClick={async () => {
                     setProfileOpen(false)
-                    await logoutUser()
-                    window.location.href = '/'
+                    await logout()
                   }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors font-medium text-left"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors font-medium text-left cursor-pointer"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                   <span>Sign Out</span>

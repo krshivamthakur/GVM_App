@@ -14,6 +14,7 @@ import {
   EyeOff
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
+import { GVMPreloader } from '@/components/ui/GVMPreloader'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -53,16 +54,52 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 bg-zinc-50 dark:bg-zinc-950">
+      {/* Fullscreen Preloader while verifying/authenticating */}
+      {loading && (
+        <GVMPreloader
+          fullScreen
+          size="lg"
+          text="Verifying Credentials"
+          subtext="Authenticating and redirecting to your portal..."
+        />
+      )}
+
       {/* Top corner theme toggle */}
       <div className="absolute top-4 right-4 z-10">
         <ThemeToggle />
       </div>
 
       <div className="w-full max-w-md space-y-6">
-        {/* Brand & Heading */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-white shadow-lg shadow-indigo-500/20">
-            <Image src="/gvm.png" alt="GVM Logo" width={80} height={80} className="h-full w-full object-contain" />
+        {/* Brand & Heading with Rotating Ring */}
+        <div className="text-center space-y-2 flex flex-col items-center">
+          <div className="relative flex items-center justify-center w-24 h-24">
+            <div className="absolute inset-0 rounded-full border border-dashed border-emerald-500/30 animate-[spin_10s_linear_infinite_reverse]" />
+            <svg
+              className="absolute inset-0 w-full h-full animate-[spin_3s_linear_infinite]"
+              viewBox="0 0 100 100"
+              fill="none"
+            >
+              <circle
+                cx="50"
+                cy="50"
+                r="46"
+                stroke="currentColor"
+                strokeWidth="2"
+                className="text-emerald-500/20 dark:text-emerald-500/30"
+              />
+              <circle
+                cx="50"
+                cy="50"
+                r="46"
+                stroke="#10b981"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeDasharray="60 180"
+              />
+            </svg>
+            <div className="h-16 w-16 rounded-full overflow-hidden p-1 bg-white dark:bg-zinc-900 shadow-md ring-1 ring-emerald-500/30 flex items-center justify-center">
+              <Image src="/gvm.png" alt="GVM Logo" width={64} height={64} className="h-full w-full object-contain rounded-full" />
+            </div>
           </div>
           <h1 className="text-2xl font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight">
             GVM

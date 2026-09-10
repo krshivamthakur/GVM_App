@@ -22,7 +22,7 @@ export default async function StudentProfilePage() {
   ])
 
   if (!user) {
-    redirect('/')
+    redirect('/login')
   }
 
   const totalLecturesCount = enrolled.reduce((acc, c) => acc + (c.total_lectures_count || 0), 0)

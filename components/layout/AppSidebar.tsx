@@ -45,7 +45,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ isCollapsed, onToggleCollapse, isMobile = false }: AppSidebarProps) {
   const pathname = usePathname()
-  const { user, role } = useAuth()
+  const { user, role, logout } = useAuth()
   const { settings } = usePlatformSettings()
 
   // Dynamic portal detection: path prefix takes priority so portal layout always matches current URL
@@ -82,6 +82,7 @@ export function AppSidebar({ isCollapsed, onToggleCollapse, isMobile = false }: 
             { title: 'Teachers Pipeline', href: '/admin/teachers', icon: UserCheck, badge: 'Review' },
             { title: 'Student Directory', href: '/admin/students', icon: GraduationCap },
             { title: 'Notifications', href: '/admin/notifications', icon: Bell, badge: 'Broadcast' },
+            { title: 'Chat & Moderation', href: '/admin/chat', icon: MessageSquare, badge: 'Live' },
           ]
         },
         {
@@ -257,7 +258,33 @@ export function AppSidebar({ isCollapsed, onToggleCollapse, isMobile = false }: 
               </span>
             </div>
           )}
+
+          {!isCollapsed && (
+            <button
+              type="button"
+              onClick={logout}
+              title="Sign Out"
+              aria-label="Sign Out"
+              className="p-1.5 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md transition-colors cursor-pointer"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          )}
         </div>
+
+        {isCollapsed && (
+          <div className="mt-1 flex justify-center">
+            <button
+              type="button"
+              onClick={logout}
+              title="Sign Out"
+              aria-label="Sign Out"
+              className="p-1.5 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-md transition-colors cursor-pointer"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   )

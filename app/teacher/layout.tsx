@@ -9,7 +9,7 @@ export default async function TeacherLayout({
 }) {
   const user = await getCurrentUser()
   if (!user) {
-    redirect('/')
+    redirect('/login')
   }
   if (user.role !== 'teacher' && user.role !== 'admin') {
     redirect('/student')
