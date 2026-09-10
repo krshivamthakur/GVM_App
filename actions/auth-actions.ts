@@ -15,13 +15,22 @@ export async function getCurrentUser(): Promise<Profile | null> {
       // 1. Try Supabase
       try {
         const supabase = createAdminClient()
-        const { data: profile, error } = await supabase
+        let { data: profile, error } = await supabase
           .from('Profile')
           .select('*')
           .eq('id', authUserId)
           .maybeSingle()
 
-        if (!error && profile) {
+        if (!profile) {
+          const res = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', authUserId)
+            .maybeSingle()
+          profile = res.data
+        }
+
+        if (profile) {
           dataStore.setActiveUser(profile)
           return profile
         }
@@ -125,21 +134,59 @@ export async function loginUser(email: string, password?: string) {
   }
 
   const normalized = email.trim().toLowerCase()
+  const trimmedPassword = password.trim()
   let user: Profile | null = null
 
-  // 1. Search in Supabase Profile table
+  // 1. Search in Supabase Profile or profiles table
   try {
     const supabase = createAdminClient()
-    const { data: profiles, error } = await supabase.from('Profile').select('*')
 
-    if (!error && profiles && profiles.length > 0) {
+    // Query 1: Try 'Profile' table
+    const { data: profiles, error: profileErr } = await supabase.from('Profile').select('*')
+    if (!profileErr && profiles && profiles.length > 0) {
       const found = profiles.find(
         (p: Profile) =>
-          p.email.toLowerCase() === normalized ||
-          (p.full_name && p.full_name.toLowerCase() === normalized)
+          p.email?.trim().toLowerCase() === normalized ||
+          p.full_name?.trim().toLowerCase() === normalized ||
+          p.id?.trim().toLowerCase() === normalized
       )
-      if (found) {
-        user = found
+      if (found) user = found
+    }
+
+    // Query 2: Try 'profiles' table if not found yet
+    if (!user) {
+      const { data: lowerProfiles, error: lowerErr } = await supabase.from('profiles').select('*')
+      if (!lowerErr && lowerProfiles && lowerProfiles.length > 0) {
+        const found = lowerProfiles.find(
+          (p: Profile) =>
+            p.email?.trim().toLowerCase() === normalized ||
+            p.full_name?.trim().toLowerCase() === normalized ||
+            p.id?.trim().toLowerCase() === normalized
+        )
+        if (found) user = found
+      }
+    }
+
+    // Query 3: Check Supabase Auth users if still not found
+    if (!user) {
+      try {
+        const { data: authData } = await supabase.auth.signInWithPassword({
+          email: normalized,
+          password: trimmedPassword,
+        })
+        if (authData?.user) {
+          user = {
+            id: authData.user.id,
+            email: authData.user.email || normalized,
+            full_name: authData.user.user_metadata?.full_name || authData.user.user_metadata?.name || normalized.split('@')[0],
+            role: (authData.user.user_metadata?.role as UserRole) || 'student',
+            teacher_status: 'approved',
+            avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+            created_at: authData.user.created_at || new Date().toISOString()
+          }
+        }
+      } catch (authErr) {
+        // Auth sign-in attempt fallback
       }
     }
   } catch (err) {
@@ -151,8 +198,9 @@ export async function loginUser(email: string, password?: string) {
     const all = dataStore.getAllProfilesAdmin()
     const found = all.find(
       (p) =>
-        p.email.toLowerCase() === normalized ||
-        (p.full_name && p.full_name.toLowerCase() === normalized)
+        p.email?.trim().toLowerCase() === normalized ||
+        p.full_name?.trim().toLowerCase() === normalized ||
+        p.id?.trim().toLowerCase() === normalized
     )
     if (found) {
       user = found
@@ -167,7 +215,7 @@ export async function loginUser(email: string, password?: string) {
   }
 
   // Verify password if user has a set password
-  if (user.password && password && user.password !== password.trim()) {
+  if (user.password && user.password.trim() !== trimmedPassword) {
     return {
       success: false,
       error: 'Incorrect password. Please verify your credentials and try again.'

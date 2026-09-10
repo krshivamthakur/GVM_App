@@ -5,13 +5,13 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { loginUser } from '@/actions/auth-actions'
-import { 
-  ArrowRight, 
-  Lock, 
-  Mail, 
-  AlertCircle, 
-  Eye, 
-  EyeOff 
+import {
+  ArrowRight,
+  Lock,
+  Mail,
+  AlertCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 
@@ -93,7 +93,7 @@ export default function LoginPage() {
                 <input
                   type="text"
                   required
-                  placeholder="name@example.com"
+                  placeholder="Your Email ID"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
