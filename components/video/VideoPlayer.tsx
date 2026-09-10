@@ -13,7 +13,6 @@ import {
   Settings,
   CheckCircle,
   Loader2,
-  ExternalLink,
   AlertCircle
 } from 'lucide-react'
 import { useProgress } from '@/hooks/useProgress'
@@ -127,13 +126,30 @@ export function VideoPlayer({
   // If the video source is an embed (Google Drive, YouTube, Vimeo), render the dedicated embed player
   if (parsed.embedUrl) {
     return (
-      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-2xl border border-zinc-200 dark:border-zinc-800">
+      <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black shadow-2xl border border-zinc-200 dark:border-zinc-800 select-none">
         <iframe
           src={parsed.embedUrl}
           className="w-full h-full border-0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
           title="Lecture Video"
+        />
+
+        {/* Top Protection Bar: Conceals and blocks Google Drive's pop-out button and title link */}
+        <div
+          className="absolute top-0 left-0 right-0 h-14 sm:h-16 bg-black pointer-events-auto z-20 cursor-default select-none"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
         />
       </div>
     )
@@ -282,22 +298,11 @@ export function VideoPlayer({
             <AlertCircle className="w-6 h-6" />
           </div>
           <div>
-            <h4 className="font-bold text-sm">Unable to Stream Video</h4>
+            <h4 className="font-bold text-sm">Video Stream Temporarily Unavailable</h4>
             <p className="text-xs text-zinc-400 mt-1 max-w-sm">
-              The direct video stream could not be loaded by your browser. Please check the URL or open it directly.
+              This lecture stream could not be loaded. Please contact your instructor or refresh the page.
             </p>
           </div>
-          {parsed.originalUrl && (
-            <a
-              href={parsed.originalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md"
-            >
-              <span>Open Video in New Tab</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
-          )}
         </div>
       )}
 
