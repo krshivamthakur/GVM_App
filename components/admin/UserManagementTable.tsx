@@ -129,9 +129,9 @@ export function UserManagementTable({ initialUsers }: UserManagementTableProps) 
       const updates: Partial<Profile> = {
         full_name: editName,
         role: editRole,
-        teacher_status: editRole === 'teacher' ? editTeacherStatus : undefined,
         bio: editBio,
-        avatar_url: editAvatar || undefined
+        avatar_url: editAvatar || undefined,
+        ...(editRole === 'teacher' ? { teacher_status: editTeacherStatus } : {})
       }
 
       if (editPassword.trim()) {

@@ -85,13 +85,35 @@ export async function createUser(data: CreateUserData): Promise<{ success: boole
   }
 
 
+  const cleanProfile: any = {}
+  for (const [k, v] of Object.entries(newProfile)) {
+    if (v !== undefined) {
+      cleanProfile[k] = v
+    }
+  }
+
   try {
     const supabase = createAdminClient()
-    const { data: created, error } = await supabase
+    let { data: created, error } = await supabase
       .from('Profile')
-      .insert(newProfile)
+      .insert(cleanProfile)
       .select()
       .single()
+
+    // If teacher_status column doesn't exist in Supabase schema cache yet, retry without it
+    if (error && error.message && error.message.includes("'teacher_status'")) {
+      const fallback = { ...cleanProfile }
+      delete fallback.teacher_status
+      const retry = await supabase
+        .from('Profile')
+        .insert(fallback)
+        .select()
+        .single()
+      if (!retry.error && retry.data) {
+        created = retry.data
+        error = null
+      }
+    }
 
     if (!error && created) {
       dataStore.getAllProfilesAdmin().unshift(created)
@@ -122,14 +144,37 @@ export async function updateUser(
   id: string,
   updates: Partial<Profile>
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
+  const cleanUpdates: any = {}
+  for (const [k, v] of Object.entries(updates)) {
+    if (v !== undefined) {
+      cleanUpdates[k] = v
+    }
+  }
+
   try {
     const supabase = createAdminClient()
-    const { data: updated, error } = await supabase
+    let { data: updated, error } = await supabase
       .from('Profile')
-      .update(updates)
+      .update(cleanUpdates)
       .eq('id', id)
       .select()
       .single()
+
+    // If teacher_status column does not exist in schema cache yet, retry without it
+    if (error && error.message && error.message.includes("'teacher_status'")) {
+      const fallback = { ...cleanUpdates }
+      delete fallback.teacher_status
+      const retry = await supabase
+        .from('Profile')
+        .update(fallback)
+        .eq('id', id)
+        .select()
+        .single()
+      if (!retry.error && retry.data) {
+        updated = retry.data
+        error = null
+      }
+    }
 
     if (!error && updated) {
       dataStore.updateProfileAdmin(id, updates)

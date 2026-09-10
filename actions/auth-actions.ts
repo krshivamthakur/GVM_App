@@ -233,7 +233,12 @@ export async function registerUser(fullName: string, email: string, role: UserRo
 
   try {
     const supabase = createAdminClient()
-    await supabase.from('Profile').upsert(newUser)
+    const cleanUser: any = { ...newUser }
+    let { error } = await supabase.from('Profile').upsert(cleanUser)
+    if (error && error.message?.includes("'teacher_status'")) {
+      delete cleanUser.teacher_status
+      await supabase.from('Profile').upsert(cleanUser)
+    }
   } catch (err) {
     console.warn('Supabase registerUser fallback:', err)
   }
