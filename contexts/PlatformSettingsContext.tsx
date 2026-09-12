@@ -2,12 +2,11 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
-export interface CometChatSettings {
-  appId: string
-  region: string
-  authKey: string
+export interface ChatEngineSettings {
   callingEnabled: boolean
   studentDMsEnabled: boolean
+  groupCreationAllowed: boolean
+  fileUploadsAllowed: boolean
 }
 
 export interface PlatformSettings {
@@ -19,7 +18,7 @@ export interface PlatformSettings {
   teacherApprovalMode: 'manual' | 'auto'
   shortsMaxDuration: string
   shortsCreatorPolicy: 'teachers' | 'all'
-  cometChat: CometChatSettings
+  chatEngine: ChatEngineSettings
 }
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
@@ -31,12 +30,11 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   teacherApprovalMode: 'manual',
   shortsMaxDuration: '60',
   shortsCreatorPolicy: 'teachers',
-  cometChat: {
-    appId: process.env.NEXT_PUBLIC_COMETCHAT_APP_ID || '',
-    region: process.env.NEXT_PUBLIC_COMETCHAT_REGION || 'us',
-    authKey: process.env.NEXT_PUBLIC_COMETCHAT_AUTH_KEY || '',
+  chatEngine: {
     callingEnabled: true,
-    studentDMsEnabled: true
+    studentDMsEnabled: true,
+    groupCreationAllowed: true,
+    fileUploadsAllowed: true
   }
 }
 
@@ -69,9 +67,9 @@ export function PlatformSettingsProvider({ children }: { children: React.ReactNo
         setSettings((prev) => ({
           ...prev,
           ...parsed,
-          cometChat: {
-            ...prev.cometChat,
-            ...(parsed.cometChat || {})
+          chatEngine: {
+            ...prev.chatEngine,
+            ...(parsed.chatEngine || {})
           }
         }))
       }
@@ -87,9 +85,9 @@ export function PlatformSettingsProvider({ children }: { children: React.ReactNo
       const updated: PlatformSettings = {
         ...prev,
         ...newSettings,
-        cometChat: newSettings.cometChat
-          ? { ...prev.cometChat, ...newSettings.cometChat }
-          : prev.cometChat
+        chatEngine: newSettings.chatEngine
+          ? { ...prev.chatEngine, ...newSettings.chatEngine }
+          : prev.chatEngine
       }
       try {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updated))

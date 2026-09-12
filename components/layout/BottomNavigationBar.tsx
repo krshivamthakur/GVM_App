@@ -95,7 +95,7 @@ export function BottomNavigationBar() {
       },
       {
         title: 'Chats',
-        href: '/student/chat',
+        href: '/teacher/chat',
         icon: MessageSquare
       },
       {

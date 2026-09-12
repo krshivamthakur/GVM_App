@@ -2,10 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
 import { Profile, UserRole } from '@/types/database'
-import { createCometChatUserServer } from '@/lib/cometchat-server'
 
 export async function getCurrentUser(): Promise<Profile | null> {
   try {
@@ -60,7 +60,7 @@ export async function getCurrentUser(): Promise<Profile | null> {
 export async function requireAuth(): Promise<Profile> {
   const user = await getCurrentUser()
   if (!user) {
-    throw new Error('Unauthorized: Authentication required.')
+    redirect('/login')
   }
   return user
 }
@@ -68,7 +68,7 @@ export async function requireAuth(): Promise<Profile> {
 export async function requireRole(allowedRoles: UserRole[]): Promise<Profile> {
   const user = await requireAuth()
   if (!allowedRoles.includes(user.role)) {
-    throw new Error('Forbidden: Insufficient permissions.')
+    redirect('/login')
   }
   return user
 }
@@ -301,13 +301,6 @@ export async function registerUser(fullName: string, email: string, role: UserRo
 
   dataStore.getAllProfilesAdmin().unshift(newUser)
   dataStore.setActiveUser(newUser)
-
-  // Auto-create corresponding chat user in CometChat cloud
-  try {
-    await createCometChatUserServer(newUser)
-  } catch (chatErr) {
-    console.warn('Auto create CometChat user warning in registerUser:', chatErr)
-  }
 
   try {
     const cookieStore = await cookies()

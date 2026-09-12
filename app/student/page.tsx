@@ -139,7 +139,7 @@ export default async function StudentDashboardPage() {
       {/* Featured Continue Learning Component */}
       <ContinueLearning activity={recentActivity} />
 
-      {/* CometChat Mentorship & Peer Discussions Banner */}
+      {/* Live Mentorship & Peer Discussions Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border border-border bg-card shadow-xs">
         <div className="flex items-center gap-3.5">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -151,7 +151,7 @@ export default async function StudentDashboardPage() {
                 Need guidance or have course doubts?
               </h3>
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-primary/10 text-primary">
-                CometChat
+                Live Chat
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">

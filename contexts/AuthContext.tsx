@@ -64,12 +64,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true)
     try {
       await logoutUser()
-      try {
-        const { logoutCometChat } = await import('@/lib/cometchat')
-        await logoutCometChat()
-      } catch {
-        // CometChat logout fallback
-      }
       setUser(null)
     } finally {
       // Force full navigation to clean up all client-side sessions

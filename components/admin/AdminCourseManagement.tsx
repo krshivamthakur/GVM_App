@@ -27,6 +27,7 @@ import {
   ChevronRight,
   Filter
 } from 'lucide-react'
+import { formatImageUrl, DEFAULT_FALLBACK_THUMBNAIL } from '@/lib/utils'
 
 interface AdminCourseManagementProps {
   initialCourses: Course[]
@@ -126,7 +127,7 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
         description: createDesc.trim(),
         category: createCategory,
         status: createStatus,
-        thumbnail_url: createThumbnail.trim(),
+        thumbnail_url: createThumbnail.trim() ? formatImageUrl(createThumbnail.trim()) : undefined,
         teacher_id: createTeacherId || undefined,
         price: 0
       }
@@ -178,7 +179,7 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
         description: editDesc.trim(),
         category: editCategory,
         status: editStatus,
-        thumbnail_url: editThumbnail.trim(),
+        thumbnail_url: editThumbnail.trim() ? formatImageUrl(editThumbnail.trim()) : undefined,
         teacher_id: editTeacherId || undefined
       }
 
@@ -375,14 +376,21 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
                   {/* Thumbnail Banner */}
                   <div className="relative h-44 w-full bg-muted overflow-hidden">
                     <img
-                      src={
-                        course.thumbnail_url ||
-                        'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'
-                      }
+                      src={formatImageUrl(course.thumbnail_url)}
                       alt={course.title}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        const target = e.currentTarget
+                        if (target.src.includes('lh3.googleusercontent.com/d/')) {
+                          const fileId = target.src.split('/d/')[1]
+                          target.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`
+                        } else {
+                          target.src = DEFAULT_FALLBACK_THUMBNAIL
+                        }
+                      }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20 pointer-events-none" />
 
                     {/* Top Badges */}
                     <div className="absolute top-3 left-3 flex items-center gap-2">
@@ -638,11 +646,14 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
                 </label>
                 <input
                   type="text"
-                  placeholder="https://images.unsplash.com/..."
+                  placeholder="https://images.unsplash.com/... or Google Drive share link"
                   value={createThumbnail}
                   onChange={(e) => setCreateThumbnail(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-border bg-background text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Supports direct image URLs and Google Drive links (view links auto-convert to direct images).
+                </p>
               </div>
 
               <div className="pt-3 flex justify-end gap-2.5 border-t border-border">
@@ -771,10 +782,14 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
                 </label>
                 <input
                   type="text"
+                  placeholder="https://images.unsplash.com/... or Google Drive share link"
                   value={editThumbnail}
                   onChange={(e) => setEditThumbnail(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-border bg-background text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                 />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Supports direct image URLs and Google Drive links (view links auto-convert to direct images).
+                </p>
               </div>
 
               <div className="pt-3 flex justify-end gap-2.5 border-t border-border">

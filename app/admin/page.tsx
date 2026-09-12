@@ -8,6 +8,7 @@ import { ShadcnMetricCard } from '@/components/dashboard/ShadcnMetricCard'
 import { OverviewChart } from '@/components/dashboard/OverviewChart'
 import { RecentActivityFeed, ActivityItem } from '@/components/dashboard/RecentActivityFeed'
 import { TeacherApprovalList } from '@/components/admin/TeacherApprovalList'
+import { formatImageUrl } from '@/lib/utils'
 import {
   Users,
   GraduationCap,
@@ -190,8 +191,9 @@ export default async function AdminDashboardPage() {
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <img
-                    src={c.thumbnail_url || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'}
+                    src={formatImageUrl(c.thumbnail_url)}
                     alt={c.title}
+                    referrerPolicy="no-referrer"
                     className="w-10 h-10 rounded-md object-cover border border-border shrink-0"
                   />
                   <div className="min-w-0">

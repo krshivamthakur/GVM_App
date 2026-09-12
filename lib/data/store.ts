@@ -39,7 +39,17 @@ let shorts: ShortVideo[] = [...INITIAL_SHORTS]
 let notifications: AppNotification[] = [...INITIAL_NOTIFICATIONS]
 let userReadNotifications: Record<string, string[]> = {}
 let notificationPreferences: Record<string, NotificationPreferences> = {}
-let activeUser: Profile = INITIAL_PROFILES[0] // Default active student
+// Anonymous placeholder — replaced immediately after login via dataStore.setActiveUser()
+const ANONYMOUS_PROFILE: Profile = {
+  id: '',
+  full_name: '',
+  email: '',
+  avatar_url: '',
+  role: 'student',
+  teacher_status: 'approved',
+  created_at: new Date().toISOString()
+}
+let activeUser: Profile = ANONYMOUS_PROFILE
 
 
 export const dataStore = {

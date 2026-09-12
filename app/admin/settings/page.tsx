@@ -22,12 +22,11 @@ import {
   ExternalLink,
   Key
 } from 'lucide-react'
-import { isCometChatConfigured, getCometChatCredentials } from '@/lib/cometchat'
 import { usePlatformSettings } from '@/contexts/PlatformSettingsContext'
 
 export default function AdminSettingsPage() {
   const { settings, updateSettings, isLoaded } = usePlatformSettings()
-  const [activeTab, setActiveTab] = useState<'general' | 'cometchat' | 'database' | 'policies' | 'danger'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'chat' | 'database' | 'policies' | 'danger'>('general')
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
 
@@ -38,14 +37,11 @@ export default function AdminSettingsPage() {
   const [allowRegistration, setAllowRegistration] = useState(settings.allowRegistration)
   const [maintenanceMode, setMaintenanceMode] = useState(settings.maintenanceMode)
 
-  // CometChat Settings State
-  const [appId, setAppId] = useState(settings.cometChat?.appId || '')
-  const [region, setRegion] = useState(settings.cometChat?.region || 'us')
-  const [authKey, setAuthKey] = useState(settings.cometChat?.authKey || '')
-  const [callingEnabled, setCallingEnabled] = useState(settings.cometChat?.callingEnabled ?? true)
-  const [studentDMsEnabled, setStudentDMsEnabled] = useState(settings.cometChat?.studentDMsEnabled ?? true)
-  const [isTestingCometChat, setIsTestingCometChat] = useState(false)
-  const [cometChatTestResult, setCometChatTestResult] = useState<string | null>(null)
+  // Chat Engine Feature Flags
+  const [callingEnabled, setCallingEnabled] = useState(settings.chatEngine?.callingEnabled ?? true)
+  const [studentDMsEnabled, setStudentDMsEnabled] = useState(settings.chatEngine?.studentDMsEnabled ?? true)
+  const [groupCreationAllowed, setGroupCreationAllowed] = useState(settings.chatEngine?.groupCreationAllowed ?? true)
+  const [fileUploadsAllowed, setFileUploadsAllowed] = useState(settings.chatEngine?.fileUploadsAllowed ?? true)
 
   // Policies State
   const [teacherApprovalMode, setTeacherApprovalMode] = useState<'manual' | 'auto'>(settings.teacherApprovalMode || 'manual')
@@ -60,11 +56,10 @@ export default function AdminSettingsPage() {
       setDefaultLanguage(settings.defaultLanguage)
       setAllowRegistration(settings.allowRegistration)
       setMaintenanceMode(settings.maintenanceMode)
-      setAppId(settings.cometChat?.appId || '')
-      setRegion(settings.cometChat?.region || 'us')
-      setAuthKey(settings.cometChat?.authKey || '')
-      setCallingEnabled(settings.cometChat?.callingEnabled ?? true)
-      setStudentDMsEnabled(settings.cometChat?.studentDMsEnabled ?? true)
+      setCallingEnabled(settings.chatEngine?.callingEnabled ?? true)
+      setStudentDMsEnabled(settings.chatEngine?.studentDMsEnabled ?? true)
+      setGroupCreationAllowed(settings.chatEngine?.groupCreationAllowed ?? true)
+      setFileUploadsAllowed(settings.chatEngine?.fileUploadsAllowed ?? true)
       setTeacherApprovalMode(settings.teacherApprovalMode || 'manual')
       setShortsMaxDuration(settings.shortsMaxDuration || '60')
       setShortsCreatorPolicy(settings.shortsCreatorPolicy || 'teachers')
@@ -85,12 +80,11 @@ export default function AdminSettingsPage() {
       teacherApprovalMode,
       shortsMaxDuration,
       shortsCreatorPolicy,
-      cometChat: {
-        appId: appId.trim(),
-        region: region.trim(),
-        authKey: authKey.trim(),
+      chatEngine: {
         callingEnabled,
-        studentDMsEnabled
+        studentDMsEnabled,
+        groupCreationAllowed,
+        fileUploadsAllowed
       }
     })
 
@@ -99,20 +93,6 @@ export default function AdminSettingsPage() {
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
     }, 400)
-  }
-
-  // Action: Test CometChat Connection
-  const handleTestCometChat = () => {
-    setIsTestingCometChat(true)
-    setCometChatTestResult(null)
-    setTimeout(() => {
-      setIsTestingCometChat(false)
-      if (appId && authKey) {
-        setCometChatTestResult('Success: CometChat Cloud API handshake verified (Region: ' + region + ')')
-      } else {
-        setCometChatTestResult('Notice: Running in Interactive Sandbox mode. Enter App ID and Auth Key for live cloud sync.')
-      }
-    }, 1200)
   }
 
   return (
@@ -129,7 +109,7 @@ export default function AdminSettingsPage() {
             </span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Configure platform branding, real-time messaging with CometChat, Supabase database, and curriculum policies.
+            Configure platform branding, real-time messaging, Supabase database, and curriculum policies.
           </p>
         </div>
 
@@ -173,15 +153,15 @@ export default function AdminSettingsPage() {
         </button>
 
         <button
-          onClick={() => setActiveTab('cometchat')}
+          onClick={() => setActiveTab('chat')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
-            activeTab === 'cometchat'
+            activeTab === 'chat'
               ? 'border-primary text-foreground font-semibold'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           }`}
         >
           <MessageSquare className="h-3.5 w-3.5" />
-          <span>CometChat Cloud</span>
+          <span>Real-Time Chat Engine</span>
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
         </button>
 
@@ -346,119 +326,55 @@ export default function AdminSettingsPage() {
         </div>
       )}
 
-      {/* Tab 2: CometChat Cloud */}
-      {activeTab === 'cometchat' && (
+      {/* Tab 2: Real-Time Chat Engine */}
+      {activeTab === 'chat' && (
         <div className="space-y-6">
           <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-foreground">CometChat Cloud Credentials</h2>
+                  <h2 className="text-sm font-semibold text-foreground">Real-Time Chat Engine Status</h2>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    UIKit v7.1
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Active & Unified
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Connect your CometChat account to empower students and instructors with 1-on-1 chat, group cohorts, and video calls.
+                  Native real-time messaging, audio/video consultations, and cohort study circles across Student, Teacher, and Admin portals.
                 </p>
               </div>
-
-              <a
-                href="https://app.cometchat.com"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:underline shrink-0"
-              >
-                <span>CometChat Dashboard</span>
-                <ExternalLink className="h-3 w-3" />
-              </a>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1.5">
-                  App ID (`NEXT_PUBLIC_COMETCHAT_APP_ID`)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 257890abcdef"
-                  value={appId}
-                  onChange={(e) => setAppId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+              <div className="p-3 rounded-lg bg-muted/40 border border-border">
+                <span className="text-[11px] text-muted-foreground font-medium">Chat Engine</span>
+                <p className="text-xs font-bold text-foreground mt-0.5">Native WebSocket & Storage Sync</p>
               </div>
-
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1.5">
-                  Region (`NEXT_PUBLIC_COMETCHAT_REGION`)
-                </label>
-                <select
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  <option value="us">United States (us)</option>
-                  <option value="eu">Europe (eu)</option>
-                  <option value="in">India (in)</option>
-                </select>
+              <div className="p-3 rounded-lg bg-muted/40 border border-border">
+                <span className="text-[11px] text-muted-foreground font-medium">Calling Protocol</span>
+                <p className="text-xs font-bold text-foreground mt-0.5">Encrypted WebRTC Audio & Video</p>
               </div>
-
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1.5">
-                  Auth Key (`NEXT_PUBLIC_COMETCHAT_AUTH_KEY`)
-                </label>
-                <input
-                  type="password"
-                  placeholder="e.g. 98abcde..."
-                  value={authKey}
-                  onChange={(e) => setAuthKey(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-border bg-background text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                />
+              <div className="p-3 rounded-lg bg-muted/40 border border-border">
+                <span className="text-[11px] text-muted-foreground font-medium">Attachment Limit</span>
+                <p className="text-xs font-bold text-foreground mt-0.5">15 MB per File / Document</p>
               </div>
             </div>
-
-            <div className="flex items-center justify-between pt-3 border-t border-border">
-              <span className="text-xs text-muted-foreground">
-                Keys can also be configured permanently in your <code className="bg-muted px-1.5 py-0.5 rounded text-[11px]">.env.local</code> file.
-              </span>
-
-              <button
-                type="button"
-                onClick={handleTestCometChat}
-                disabled={isTestingCometChat}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-foreground hover:bg-muted transition-colors"
-              >
-                {isTestingCometChat ? (
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-primary" />
-                )}
-                <span>{isTestingCometChat ? 'Testing API...' : 'Test Connection'}</span>
-              </button>
-            </div>
-
-            {cometChatTestResult && (
-              <div className="p-3 rounded-lg bg-muted/60 border border-border text-xs font-mono text-foreground">
-                {cometChatTestResult}
-              </div>
-            )}
           </div>
 
           <div className="rounded-xl border border-border bg-card p-5 space-y-4 shadow-xs">
             <div>
-              <h2 className="text-sm font-semibold text-foreground">CometChat Feature Flags</h2>
+              <h2 className="text-sm font-semibold text-foreground">Chat Engine Feature Governance</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Manage features accessible to students and instructors in the chat workspace.
+                Control permissions and communications accessible to learners and instructors.
               </p>
             </div>
 
             <div className="space-y-3 divide-y divide-border/60">
               <div className="flex items-center justify-between pt-2">
                 <div>
-                  <p className="text-xs font-medium text-foreground">Voice & Video Calling SDK</p>
+                  <p className="text-xs font-medium text-foreground">Audio & Video Consultations</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Enables 1-on-1 audio and video consultation calls directly between students and verified instructors.
+                    Enables 1-on-1 audio and video consultation meetings directly between students and verified instructors.
                   </p>
                 </div>
                 <button
@@ -478,9 +394,9 @@ export default function AdminSettingsPage() {
 
               <div className="flex items-center justify-between pt-3">
                 <div>
-                  <p className="text-xs font-medium text-foreground">Student Peer-to-Peer Messaging</p>
+                  <p className="text-xs font-medium text-foreground">Student Direct Messaging</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Allows enrolled students in the same course cohort to direct-message each other.
+                    Allows enrolled students to initiate 1-on-1 direct conversations with peers and mentors.
                   </p>
                 </div>
                 <button
@@ -493,6 +409,50 @@ export default function AdminSettingsPage() {
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-background shadow-xs transition duration-200 ease-in-out ${
                       studentDMsEnabled ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between pt-3">
+                <div>
+                  <p className="text-xs font-medium text-foreground">Study Cohort & Group Creation</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Enables instructors and course creators to spawn discussion channels and study cohorts.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGroupCreationAllowed(!groupCreationAllowed)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    groupCreationAllowed ? 'bg-primary' : 'bg-muted'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-background shadow-xs transition duration-200 ease-in-out ${
+                      groupCreationAllowed ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between pt-3">
+                <div>
+                  <p className="text-xs font-medium text-foreground">Media & Document Attachments</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Permits uploading lecture notes, images, PDFs, and code files up to 15MB.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFileUploadsAllowed(!fileUploadsAllowed)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    fileUploadsAllowed ? 'bg-primary' : 'bg-muted'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-background shadow-xs transition duration-200 ease-in-out ${
+                      fileUploadsAllowed ? 'translate-x-4' : 'translate-x-0'
                     }`}
                   />
                 </button>
@@ -722,7 +682,7 @@ export default function AdminSettingsPage() {
                       platform: 'GVM EduLMS',
                       timestamp: new Date().toISOString(),
                       status: 'active',
-                      modules: ['courses', 'shorts', 'cometchat', 'supabase']
+                      modules: ['courses', 'shorts', 'chat', 'supabase']
                     }
                     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
                     const url = URL.createObjectURL(blob)

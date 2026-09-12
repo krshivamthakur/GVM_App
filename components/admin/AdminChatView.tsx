@@ -1,8 +1,16 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { Profile } from '@/types/database'
+import { ChatConversation } from '@/types/chat'
+import { UnifiedChatEngine } from '@/components/chat/UnifiedChatEngine'
+import { ChatStateManager } from '@/lib/chat/chat-store'
+import {
+  deleteServerConversationAction,
+  updateServerConversationAction,
+  createServerConversationAction
+} from '@/actions/chat-actions'
 import {
   MessageSquare,
   Users,
@@ -39,11 +47,6 @@ import {
   UserX,
   UserCheck
 } from 'lucide-react'
-import {
-  initCometChat,
-  loginCometChat,
-  getCometChatCredentials
-} from '@/lib/cometchat'
 
 export interface AdminChatContact {
   id: string
@@ -144,6 +147,7 @@ interface AdminChatViewProps {
 
 export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
   const { user } = useAuth()
+  const chatStore = useMemo(() => ChatStateManager.getInstance(), [])
   const [activeTab, setActiveTab] = useState<'chat' | 'channels' | 'moderation' | 'broadcast'>('chat')
   const [contacts, setContacts] = useState<AdminChatContact[]>(INITIAL_CHANNELS)
   const [activeContact, setActiveContact] = useState<AdminChatContact>(INITIAL_CHANNELS[0])
@@ -158,12 +162,22 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
   const [showMobileChat, setShowMobileChat] = useState(false)
   const [bannerAlert, setBannerAlert] = useState<string | null>(null)
 
+  // Active Channel & Directory State synced with ChatStateManager
+  const [selectedChannelId, setSelectedChannelId] = useState<string>('conv_announcements')
+  const [channelList, setChannelList] = useState<ChatConversation[]>([])
+
   // Create Channel Modal state
   const [showCreateChannelModal, setShowCreateChannelModal] = useState(false)
   const [newChannelName, setNewChannelName] = useState('')
   const [newChannelTopic, setNewChannelTopic] = useState('')
   const [newChannelCategory, setNewChannelCategory] = useState<'general' | 'cohort' | 'support' | 'faculty'>('cohort')
   const [newChannelLocked, setNewChannelLocked] = useState(false)
+
+  // Edit / Manage Channel Modal state
+  const [editingChannel, setEditingChannel] = useState<ChatConversation | null>(null)
+  const [editChannelTitle, setEditChannelTitle] = useState('')
+  const [editChannelTopic, setEditChannelTopic] = useState('')
+  const [editChannelLocked, setEditChannelLocked] = useState(false)
 
   // Broadcast modal/form state
   const [broadcastMessage, setBroadcastMessage] = useState('')
@@ -174,9 +188,28 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [targetDeleteContact, setTargetDeleteContact] = useState<AdminChatContact | null>(null)
 
-  // CometChat configuration check
-  const [cometChatReady, setCometChatReady] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Sync official channels list directly with ChatStateManager
+  useEffect(() => {
+    const updateChannels = () => {
+      const allConvs = chatStore.getConversations()
+      const groups = allConvs.filter(
+        (c) => c.type === 'group' || c.type === 'channel' || c.type === 'support'
+      )
+      setChannelList(groups)
+    }
+
+    updateChannels()
+    window.addEventListener('gvm_chat_update', updateChannels)
+    window.addEventListener('gvm_chat_updated', updateChannels)
+    window.addEventListener('storage', updateChannels)
+    return () => {
+      window.removeEventListener('gvm_chat_update', updateChannels)
+      window.removeEventListener('gvm_chat_updated', updateChannels)
+      window.removeEventListener('storage', updateChannels)
+    }
+  }, [chatStore])
 
   // 1. Hydrate from localStorage and sync dynamic database users
   useEffect(() => {
@@ -246,9 +279,9 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
             avatar:
               u.avatar_url ||
               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-            isMuted: false,
-            isBanned: false,
-            warningsCount: 0
+            isMuted: chatStore.isUserMuted(u.id),
+            isBanned: chatStore.isUserBlocked(u.id),
+            warningsCount: chatStore.getUserStrikes(u.id)
           })
           existingUserIds.add(u.id)
         }
@@ -260,17 +293,6 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
     setModeratedUsers(currentModerated)
     if (currentContacts.length > 0) {
       setActiveContact(currentContacts[0])
-    }
-
-    // Check CometChat
-    const creds = getCometChatCredentials()
-    if (creds) {
-      initCometChat().then((ok) => {
-        if (ok && user) {
-          loginCometChat(user).catch(() => {})
-          setCometChatReady(true)
-        }
-      })
     }
   }, [user, initialUsers])
 
@@ -383,23 +405,12 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
     persistState(contacts, updated, moderatedUsers)
   }
 
-  // Moderator: Toggle Channel Lock / Read-Only
-  const handleToggleLock = (contactId: string) => {
-    const updated = contacts.map((c) =>
-      c.id === contactId ? { ...c, isLocked: !c.isLocked } : c
-    )
-    setContacts(updated)
-    if (activeContact.id === contactId) {
-      setActiveContact((prev) => ({ ...prev, isLocked: !prev.isLocked }))
-    }
-    persistState(updated, messages, moderatedUsers)
-    setBannerAlert(`Channel ${contactId} lock status updated.`)
-    setTimeout(() => setBannerAlert(null), 3000)
-  }
 
   // Moderator: Delete chat entirely (remove contact from list and purge messages)
   const handleDeleteChat = (contactId: string) => {
     const contactToDelete = contacts.find((c) => c.id === contactId) || targetDeleteContact
+
+    chatStore.deleteConversation(contactId)
 
     // 1. Remove messages for this contact
     const updatedMessages = { ...messages }
@@ -440,6 +451,8 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
   const handleClearMessages = (contactId: string) => {
     const contactToClear = contacts.find((c) => c.id === contactId) || targetDeleteContact
 
+    chatStore.clearChat(contactId)
+
     // 1. Clear messages
     const updatedMessages = {
       ...messages,
@@ -472,62 +485,42 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
     // 3. Persist to storage
     persistState(updatedContacts, updatedMessages, moderatedUsers)
 
-    setBannerAlert(`Messages cleared for "${contactToClear?.name || 'conversation'}".`)
+    setBannerAlert(`Conversation with "${contactToClear?.name || 'user'}" has been cleared.`)
     setShowDeleteModal(false)
     setTargetDeleteContact(null)
     setTimeout(() => setBannerAlert(null), 3000)
   }
 
-  // Moderator: Create new channel
+  // Moderator: Create Channel
   const handleCreateChannel = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newChannelName.trim()) return
 
     const formattedName = newChannelName.startsWith('#')
-      ? newChannelName.trim().toLowerCase()
-      : `#${newChannelName.trim().toLowerCase()}`
+      ? newChannelName.trim()
+      : `#${newChannelName.trim().toLowerCase().replace(/\s+/g, '-')}`
 
-    const newId = `group_${Date.now()}`
-    const newChan: AdminChatContact = {
-      id: newId,
-      name: formattedName,
-      role: 'group',
-      title: newChannelTopic.trim() || 'General Study Channel',
-      avatar:
-        'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=120&auto=format&fit=crop&q=80',
-      status: 'online',
-      unread: 0,
-      lastMessage: 'Channel created by administrator.',
-      lastTime: 'Just now',
+    const newGroupConv = chatStore.createGroup({
+      title: formattedName,
+      type: newChannelCategory === 'support' ? 'support' : 'group',
+      pinnedNotice: newChannelTopic.trim() || `Welcome to ${formattedName}!`,
       isLocked: newChannelLocked,
-      memberCount: 1,
-      category: newChannelCategory
-    }
+      creatorName: user?.full_name || 'System Administrator'
+    })
 
-    const updatedContacts = [newChan, ...contacts]
-    const updatedMessages: Record<string, AdminChatMessage[]> = {
-      ...messages,
-      [newId]: [
-        {
-          id: 'welcome_' + Date.now(),
-          senderId: user?.id || 'admin',
-          senderName: user?.full_name || 'System Administrator',
-          senderRole: 'admin',
-          text: `🎉 Channel ${formattedName} created. Topic: ${newChannelTopic || 'General discussion'}`,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          isSelf: true,
-          isPinned: true
-        }
-      ]
-    }
+    createServerConversationAction({
+      title: formattedName,
+      type: newChannelCategory === 'support' ? 'support' : 'group',
+      isLocked: newChannelLocked,
+      pinnedNotice: newChannelTopic.trim() || undefined
+    }).catch(() => {})
 
-    setContacts(updatedContacts)
-    setMessages(updatedMessages)
-    setActiveContact(newChan)
+    setChannelList(
+      chatStore.getConversations().filter((c) => c.type === 'group' || c.type === 'channel' || c.type === 'support')
+    )
     setShowCreateChannelModal(false)
     setNewChannelName('')
     setNewChannelTopic('')
-    persistState(updatedContacts, updatedMessages, moderatedUsers)
 
     setBannerAlert(`Official channel ${formattedName} created successfully!`)
     setTimeout(() => setBannerAlert(null), 3500)
@@ -535,11 +528,63 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
 
   // Moderator: Delete Channel
   const handleDeleteChannel = (channelId: string) => {
-    const ch = contacts.find((c) => c.id === channelId)
-    if (ch) {
-      setTargetDeleteContact(ch)
-      setShowDeleteModal(true)
+    if (confirm('Permanently delete this official channel and all its message history?')) {
+      chatStore.deleteConversation(channelId)
+      deleteServerConversationAction(channelId).catch(() => {})
+      setChannelList(
+        chatStore.getConversations().filter((c) => c.type === 'group' || c.type === 'channel' || c.type === 'support')
+      )
+      setBannerAlert('Channel has been deleted permanently.')
+      setTimeout(() => setBannerAlert(null), 3000)
     }
+  }
+
+  // Moderator: Toggle Lock status
+  const handleToggleLock = (channelId: string) => {
+    const isLocked = chatStore.toggleChannelLock(channelId)
+    updateServerConversationAction({ id: channelId, isLocked }).catch(() => {})
+    setChannelList(
+      chatStore.getConversations().filter((c) => c.type === 'group' || c.type === 'channel' || c.type === 'support')
+    )
+    setBannerAlert(isLocked ? 'Channel set to read-only announcement mode.' : 'Channel unlocked for community discussion.')
+    setTimeout(() => setBannerAlert(null), 3000)
+  }
+
+  // Moderator: Open Channel Editor
+  const handleEditChannel = (channel: ChatConversation) => {
+    setEditingChannel(channel)
+    setEditChannelTitle(channel.title.replace(/^#/, ''))
+    setEditChannelTopic(channel.pinned_notice || '')
+    setEditChannelLocked(Boolean(channel.is_locked))
+  }
+
+  // Moderator: Save Edited Channel
+  const handleSaveEditChannel = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingChannel) return
+    if (!editChannelTitle.trim()) return
+
+    const updated = chatStore.updateGroup(editingChannel.id, {
+      title: editChannelTitle.trim(),
+      pinnedNotice: editChannelTopic.trim(),
+      isLocked: editChannelLocked
+    })
+
+    if (updated) {
+      updateServerConversationAction({
+        id: editingChannel.id,
+        title: updated.title,
+        pinnedNotice: updated.pinned_notice,
+        isLocked: updated.is_locked
+      }).catch(() => {})
+      setChannelList(
+        chatStore.getConversations().filter((c) => c.type === 'group' || c.type === 'channel' || c.type === 'support')
+      )
+    }
+
+    setEditingChannel(null)
+    setBannerAlert('Channel settings updated successfully.')
+    setTimeout(() => setBannerAlert(null), 3000)
   }
 
   // Moderator: Send Global Broadcast Announcement
@@ -547,39 +592,17 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
     e.preventDefault()
     if (!broadcastMessage.trim()) return
 
-    const broadcastMsgObj = (cId: string): AdminChatMessage => ({
-      id: `broadcast_${Date.now()}_${cId}`,
-      senderId: user?.id || 'admin',
-      senderName: '📢 Official LMS Broadcast',
-      senderRole: 'admin',
+    chatStore.broadcastAnnouncement({
       text: broadcastMessage.trim(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      isSelf: true,
-      isPinned: true
+      target: broadcastTarget,
+      adminName: user?.full_name || 'System Administrator',
+      adminAvatar: user?.avatar_url || undefined,
+      adminId: user?.id
     })
 
-    const updatedMessages = { ...messages }
-    const updatedContacts = contacts.map((c) => {
-      if (c.role === 'group') {
-        if (broadcastTarget === 'cohorts' && c.category !== 'cohort') return c
-        if (broadcastTarget === 'faculty' && c.category !== 'faculty') return c
-
-        updatedMessages[c.id] = [...(updatedMessages[c.id] || []), broadcastMsgObj(c.id)]
-        return {
-          ...c,
-          lastMessage: `📢 [Broadcast]: ${broadcastMessage.trim().slice(0, 50)}...`,
-          lastTime: 'Just now',
-          pinnedNotice: broadcastMessage.trim()
-        }
-      }
-      return c
-    })
-
-    setMessages(updatedMessages)
-    setContacts(updatedContacts)
     setBroadcastSuccess(true)
     setBroadcastMessage('')
-    persistState(updatedContacts, updatedMessages, moderatedUsers)
+    setBannerAlert('📢 Official administrative broadcast dispatched to announcements hub and active cohort channels.')
 
     setTimeout(() => {
       setBroadcastSuccess(false)
@@ -589,30 +612,37 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
 
   // Moderator: Mute User
   const handleToggleMute = (userId: string) => {
+    const isMutedNow = chatStore.toggleMute(userId)
     const updated = moderatedUsers.map((u) =>
-      u.id === userId ? { ...u, isMuted: !u.isMuted } : u
+      u.id === userId ? { ...u, isMuted: isMutedNow } : u
     )
     setModeratedUsers(updated)
     persistState(contacts, messages, updated)
+    setBannerAlert(isMutedNow ? 'User has been muted across all chat channels.' : 'User has been unmuted.')
+    setTimeout(() => setBannerAlert(null), 3000)
   }
 
   // Moderator: Ban User
   const handleToggleBan = (userId: string) => {
+    const isBannedNow = chatStore.toggleBan(userId)
     const updated = moderatedUsers.map((u) =>
-      u.id === userId ? { ...u, isBanned: !u.isBanned } : u
+      u.id === userId ? { ...u, isBanned: isBannedNow } : u
     )
     setModeratedUsers(updated)
     persistState(contacts, messages, updated)
+    setBannerAlert(isBannedNow ? 'User has been banned from chat participation.' : 'User chat ban lifted.')
+    setTimeout(() => setBannerAlert(null), 3000)
   }
 
   // Moderator: Issue Warning
   const handleIssueWarning = (userId: string) => {
+    const newStrikes = chatStore.addStrike(userId)
     const updated = moderatedUsers.map((u) =>
-      u.id === userId ? { ...u, warningsCount: u.warningsCount + 1 } : u
+      u.id === userId ? { ...u, warningsCount: newStrikes } : u
     )
     setModeratedUsers(updated)
     persistState(contacts, messages, updated)
-    setBannerAlert('Formal warning issued to user.')
+    setBannerAlert(`Formal warning strike issued. Total strikes: ${newStrikes}`)
     setTimeout(() => setBannerAlert(null), 3000)
   }
 
@@ -655,7 +685,7 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
             }`}
           >
             <Hash className="h-3.5 w-3.5" />
-            <span>Manage Channels ({contacts.filter((c) => c.role === 'group').length})</span>
+            <span>Manage Channels ({channelList.length})</span>
           </button>
 
           <button
@@ -694,20 +724,12 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
           </button>
 
           <div
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${
-              cometChatReady
-                ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                : 'border-border bg-muted/40 text-muted-foreground'
-            }`}
-            title={cometChatReady ? 'CometChat live SDK initialized' : 'Simulated Sandbox / Demo Mode'}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            title="Real-Time Unified Chat System Active"
           >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                cometChatReady ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-              }`}
-            />
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-[11px] hidden md:inline">
-              {cometChatReady ? 'CometChat Live' : 'Sandbox Moderation'}
+              Real-Time Moderation Live
             </span>
           </div>
         </div>
@@ -715,454 +737,13 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
 
       {/* TAB 1: LIVE MODERATOR CHAT */}
       {activeTab === 'chat' && (
-        <div className="flex flex-col h-[calc(100dvh-13.5rem)] sm:h-[calc(100vh-11.5rem)] min-h-[560px] rounded-xl border border-border bg-card shadow-xs overflow-hidden">
-          <div className="flex flex-1 min-h-0 lg:divide-x divide-border overflow-hidden">
-            {/* Left Sidebar: Conversations & Channels */}
-            <div
-              className={`w-full lg:w-80 xl:w-96 flex flex-col bg-sidebar shrink-0 ${
-                showMobileChat ? 'hidden lg:flex' : 'flex'
-              }`}
-            >
-              {/* Search Bar & Category Filters */}
-              <div className="p-3 border-b border-border space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search channels, instructors, students..."
-                    className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-border bg-background text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
-                </div>
-
-                <div className="flex items-center gap-1">
-                  {(['all', 'groups', 'instructors', 'students'] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setFilterType(t)}
-                      className={`flex-1 py-1 text-[11px] font-semibold rounded-md capitalize transition-colors ${
-                        filterType === t
-                          ? 'bg-primary text-primary-foreground shadow-xs'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                      }`}
-                    >
-                      {t === 'groups' ? 'Channels' : t}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Conversations List */}
-              <div className="flex-1 overflow-y-auto divide-y divide-border/50">
-                {filteredContacts.length === 0 ? (
-                  <div className="p-6 text-center text-xs text-muted-foreground">
-                    No channels or conversations found.
-                  </div>
-                ) : (
-                  filteredContacts.map((contact) => {
-                    const isActive = contact.id === activeContact.id
-                    return (
-                      <button
-                        key={contact.id}
-                        onClick={() => {
-                          setActiveContact(contact)
-                          setShowMobileChat(true)
-                          setContacts((prev) =>
-                            prev.map((c) => (c.id === contact.id ? { ...c, unread: 0 } : c))
-                          )
-                        }}
-                        className={`group w-full flex items-start gap-3 p-3 text-left transition-colors cursor-pointer ${
-                          isActive
-                            ? 'bg-primary/10 border-l-2 border-primary'
-                            : 'hover:bg-muted/40'
-                        }`}
-                      >
-                        {/* Avatar */}
-                        <div className="relative shrink-0">
-                          <img
-                            src={contact.avatar}
-                            alt={contact.name}
-                            className="h-10 w-10 rounded-full object-cover ring-1 ring-border"
-                          />
-                          {contact.role === 'group' ? (
-                            <div className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] font-bold">
-                              #
-                            </div>
-                          ) : (
-                            <div
-                              className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-background ${
-                                contact.status === 'online'
-                                  ? 'bg-emerald-500'
-                                  : 'bg-muted-foreground'
-                              }`}
-                            />
-                          )}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1 mb-0.5">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="font-semibold text-xs sm:text-sm truncate text-foreground">
-                                {contact.name}
-                              </span>
-                              {contact.isLocked && (
-                                <Lock className="h-3 w-3 text-amber-500 shrink-0" />
-                              )}
-                            </div>
-                            <span className="text-[10px] text-muted-foreground shrink-0">
-                              {contact.lastTime}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-muted-foreground truncate leading-relaxed">
-                            {contact.lastMessage}
-                          </p>
-                        </div>
-
-                        {contact.unread > 0 && (
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-                            {contact.unread}
-                          </span>
-                        )}
-
-                        {/* Quick Delete Chat button */}
-                        <div
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setTargetDeleteContact(contact)
-                            setShowDeleteModal(true)
-                          }}
-                          title="Delete Chat"
-                          className="opacity-0 group-hover:opacity-100 p-1 text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded transition-all shrink-0 cursor-pointer"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </div>
-                      </button>
-                    )
-                  })
-                )}
-              </div>
-
-              {/* Admin Footer Banner */}
-              <div className="p-2.5 border-t border-border bg-muted/20 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="h-7 w-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-bold shadow-xs">
-                    <ShieldCheck className="h-3.5 w-3.5" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-foreground">Admin Mode Active</p>
-                    <p className="text-[10px] text-muted-foreground">Moderator Permissions Granted</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Area: Active Chat & Moderation Controls */}
-            <div
-              className={`flex-1 flex flex-col min-w-0 bg-background ${
-                !showMobileChat ? 'hidden lg:flex' : 'flex'
-              }`}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-2.5 border-b border-border bg-card shrink-0">
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                  {/* Mobile Back Button */}
-                  <button
-                    type="button"
-                    onClick={() => setShowMobileChat(false)}
-                    className="lg:hidden inline-flex items-center gap-1 py-1 px-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </button>
-
-                  <div className="relative shrink-0">
-                    <img
-                      src={activeContact.avatar}
-                      alt={activeContact.name}
-                      className="h-9 w-9 rounded-full object-cover ring-1 ring-border"
-                    />
-                    {activeContact.role === 'group' ? (
-                      <div className="absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-primary-foreground text-[8px] font-bold">
-                        #
-                      </div>
-                    ) : (
-                      <div
-                        className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-background ${
-                          activeContact.status === 'online' ? 'bg-emerald-500' : 'bg-muted-foreground'
-                        }`}
-                      />
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 sm:gap-2">
-                      <h3 className="text-xs sm:text-sm font-semibold text-foreground truncate">
-                        {activeContact.name}
-                      </h3>
-                      {activeContact.isLocked && (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                          <Lock className="h-2.5 w-2.5" />
-                          <span>Locked</span>
-                        </span>
-                      )}
-                      {activeContact.role === 'group' && (
-                        <span className="text-[11px] text-muted-foreground">
-                          ({activeContact.memberCount || 24} members)
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate max-w-sm">
-                      {activeContact.title}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Moderator Header Actions */}
-                <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-                  {/* Lock / Unlock Channel Toggle */}
-                  {activeContact.role === 'group' && (
-                    <button
-                      type="button"
-                      onClick={() => handleToggleLock(activeContact.id)}
-                      title={activeContact.isLocked ? 'Unlock Channel' : 'Lock Channel (Read Only)'}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer ${
-                        activeContact.isLocked
-                          ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                          : 'border-border hover:bg-muted text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      {activeContact.isLocked ? (
-                        <>
-                          <Unlock className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">Unlock</span>
-                        </>
-                      ) : (
-                        <>
-                          <Lock className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline">Lock Channel</span>
-                        </>
-                      )}
-                    </button>
-                  )}
-
-                  {/* Call Consults (Voice / Video) */}
-                  <button
-                    type="button"
-                    onClick={() => setIsCalling('audio')}
-                    title="Audio Consultation"
-                    className="p-2 sm:px-2.5 sm:py-1.5 rounded-lg border border-border text-xs font-medium hover:bg-muted transition-colors"
-                  >
-                    <Phone className="h-3.5 w-3.5 text-primary" />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsCalling('video')}
-                    title="Video Meeting"
-                    className="p-2 sm:px-2.5 sm:py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium hover:bg-primary/90 transition-colors shadow-xs"
-                  >
-                    <Video className="h-3.5 w-3.5" />
-                  </button>
-
-                  {/* Delete or Clear Chat */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetDeleteContact(activeContact)
-                      setShowDeleteModal(true)
-                    }}
-                    title="Delete Chat or Clear Messages"
-                    aria-label="Delete Chat or Clear Messages"
-                    className="p-2 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Calling Active Overlay */}
-              {isCalling && (
-                <div className="flex items-center justify-between gap-2 px-4 py-2 bg-primary/10 border-b border-primary/20 text-xs text-primary animate-in fade-in shrink-0">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
-                    <span className="font-semibold">
-                      CometChat {isCalling === 'video' ? 'Video Conference' : 'Voice Call'} with{' '}
-                      {activeContact.name} Active
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setIsCalling(null)}
-                    className="px-2.5 py-1 rounded bg-destructive text-destructive-foreground text-xs font-semibold hover:bg-destructive/90 transition-colors"
-                  >
-                    End Call
-                  </button>
-                </div>
-              )}
-
-              {/* Pinned Notice if any */}
-              {activeContact.pinnedNotice && (
-                <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-800 dark:text-amber-300 shrink-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Pin className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                    <span className="font-semibold truncate">Pinned:</span>
-                    <span className="truncate">{activeContact.pinnedNotice}</span>
-                  </div>
-                  <button
-                    onClick={() => {
-                      const updated = contacts.map((c) =>
-                        c.id === activeContact.id ? { ...c, pinnedNotice: undefined } : c
-                      )
-                      setContacts(updated)
-                      setActiveContact((prev) => ({ ...prev, pinnedNotice: undefined }))
-                      persistState(updated, messages, moderatedUsers)
-                    }}
-                    className="p-1 text-amber-600 hover:text-amber-900 dark:hover:text-amber-100"
-                    title="Dismiss pinned notice"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* Messages Feed */}
-              <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-3">
-                {currentMessages.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center p-8 text-muted-foreground">
-                    <MessageSquare className="h-8 w-8 text-muted-foreground/50 mb-2" />
-                    <p className="text-xs font-semibold">No messages in this channel yet.</p>
-                    <p className="text-[11px] mt-0.5">Send a message to start the conversation.</p>
-                  </div>
-                ) : (
-                  currentMessages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`group relative flex items-start gap-2.5 ${
-                        msg.isSelf ? 'flex-row-reverse' : 'flex-row'
-                      }`}
-                    >
-                      {/* Avatar */}
-                      <img
-                        src={
-                          msg.avatar ||
-                          (msg.isSelf
-                            ? user?.avatar_url || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120'
-                            : activeContact.avatar)
-                        }
-                        alt={msg.senderName}
-                        className="h-8 w-8 rounded-full object-cover shrink-0 ring-1 ring-border mt-0.5"
-                      />
-
-                      {/* Message Bubble */}
-                      <div className="max-w-[85%] sm:max-w-[70%]">
-                        <div
-                          className={`flex items-center gap-1.5 mb-1 text-[11px] ${
-                            msg.isSelf ? 'justify-end' : 'justify-start'
-                          }`}
-                        >
-                          <span className="font-semibold text-foreground">{msg.senderName}</span>
-                          {msg.senderRole === 'admin' && (
-                            <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[9px] font-bold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-                              <ShieldCheck className="h-2.5 w-2.5" />
-                              ADMIN
-                            </span>
-                          )}
-                          <span className="text-[10px] text-muted-foreground">{msg.time}</span>
-                          {msg.isPinned && (
-                            <Pin className="h-3 w-3 text-amber-500 inline fill-amber-500" />
-                          )}
-                        </div>
-
-                        <div
-                          className={`rounded-2xl px-3.5 py-2 text-xs sm:text-sm shadow-xs break-words ${
-                            msg.isDeleted
-                              ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 italic'
-                              : msg.isSelf
-                              ? 'bg-indigo-600 text-white rounded-tr-xs'
-                              : 'bg-muted/70 text-foreground border border-border/80 rounded-tl-xs'
-                          }`}
-                        >
-                          <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                        </div>
-                      </div>
-
-                      {/* Moderator Hover Actions */}
-                      {!msg.isDeleted && (
-                        <div
-                          className={`opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 self-center bg-card/90 border border-border rounded-lg p-1 shadow-xs ${
-                            msg.isSelf ? 'mr-1' : 'ml-1'
-                          }`}
-                        >
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePin(msg.id)}
-                            title={msg.isPinned ? 'Unpin message' : 'Pin message to channel'}
-                            className="p-1 text-muted-foreground hover:text-amber-500 rounded transition-colors"
-                          >
-                            <Pin className="h-3 w-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteMessage(msg.id)}
-                            title="Purge / Delete message"
-                            className="p-1 text-muted-foreground hover:text-rose-600 rounded transition-colors"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Chat Input Bar */}
-              <div className="p-2.5 sm:p-3 border-t border-border bg-card shrink-0">
-                {activeContact.isLocked && (
-                  <div className="mb-2 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-[11px] flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Lock className="h-3 w-3" />
-                      Channel is locked for students. You are posting with Administrative override.
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleLock(activeContact.id)}
-                      className="underline font-semibold hover:text-foreground cursor-pointer"
-                    >
-                      Unlock Now
-                    </button>
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-1.5 focus-within:ring-1 focus-within:ring-ring transition-shadow">
-                  <div className="flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-bold text-[10px] uppercase tracking-wider shrink-0 bg-indigo-500/10 px-1.5 py-0.5 rounded">
-                    <ShieldCheck className="h-3 w-3" />
-                    <span>Admin</span>
-                  </div>
-
-                  <input
-                    type="text"
-                    value={inputText}
-                    onChange={(e) => setInputText(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder={`Broadcast message to ${activeContact.name}...`}
-                    className="flex-1 min-w-0 bg-transparent py-1 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={handleSendMessage}
-                    disabled={!inputText.trim()}
-                    className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-xs cursor-pointer"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <UnifiedChatEngine
+          portalRole="admin"
+          initialUsers={initialUsers}
+          initialActiveConvId={selectedChannelId}
+          customTitle="Community Moderation & Real-Time Chat"
+          customSubtitle="Direct Messaging, Cohort Channels & Full Governance"
+        />
       )}
 
       {/* TAB 2: MANAGE CHANNELS */}
@@ -1172,25 +753,25 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
               <span className="text-xs text-muted-foreground font-medium">Total Channels</span>
               <div className="text-2xl font-bold text-foreground mt-1">
-                {contacts.filter((c) => c.role === 'group').length}
+                {channelList.length}
               </div>
             </div>
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
               <span className="text-xs text-muted-foreground font-medium">Locked / Announcements</span>
               <div className="text-2xl font-bold text-amber-600 mt-1">
-                {contacts.filter((c) => c.role === 'group' && c.isLocked).length}
+                {channelList.filter((c) => c.is_locked).length}
               </div>
             </div>
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
               <span className="text-xs text-muted-foreground font-medium">Total Community Members</span>
               <div className="text-2xl font-bold text-foreground mt-1">
-                {contacts.reduce((acc, c) => acc + (c.memberCount || 0), 0)}
+                {channelList.reduce((acc, c) => acc + (c.participants?.length || 24), 0)}
               </div>
             </div>
             <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
               <span className="text-xs text-muted-foreground font-medium">Active Cohort Channels</span>
               <div className="text-2xl font-bold text-indigo-600 mt-1">
-                {contacts.filter((c) => c.role === 'group' && c.category === 'cohort').length}
+                {channelList.filter((c) => c.type === 'group').length}
               </div>
             </div>
           </div>
@@ -1225,36 +806,41 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {contacts
-                    .filter((c) => c.role === 'group')
-                    .map((channel) => (
+                  {channelList.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                        No channels found. Click &quot;Create Channel&quot; to establish an official cohort or discussion room.
+                      </td>
+                    </tr>
+                  ) : (
+                    channelList.map((channel) => (
                       <tr key={channel.id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                            <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
                               #
                             </div>
-                            <div>
-                              <p className="font-semibold text-foreground">{channel.name}</p>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-foreground truncate">{channel.title}</p>
                               <p className="text-[11px] text-muted-foreground truncate max-w-xs">
-                                {channel.title}
+                                {channel.pinned_notice || 'Open discussion cohort channel'}
                               </p>
                             </div>
                           </div>
                         </td>
                         <td className="px-4 py-3">
                           <span className="capitalize px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-muted-foreground">
-                            {channel.category || 'general'}
+                            {channel.type || 'group'}
                           </span>
                         </td>
                         <td className="px-4 py-3 font-medium text-foreground">
-                          {channel.memberCount || 24} students
+                          {channel.participants?.length || 24} members
                         </td>
                         <td className="px-4 py-3">
-                          {channel.isLocked ? (
+                          {channel.is_locked ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400">
                               <Lock className="h-3 w-3" />
-                              Locked
+                              Locked Announcements
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
@@ -1266,28 +852,39 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <button
+                              type="button"
                               onClick={() => {
-                                setActiveContact(channel)
+                                setSelectedChannelId(channel.id)
                                 setActiveTab('chat')
                               }}
-                              className="px-2 py-1 rounded bg-muted hover:bg-muted/80 text-foreground font-semibold text-[11px] transition-colors"
+                              className="px-2.5 py-1 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 font-semibold text-[11px] transition-colors cursor-pointer"
                             >
                               Open Chat
                             </button>
                             <button
+                              type="button"
                               onClick={() => handleToggleLock(channel.id)}
-                              className={`p-1.5 rounded transition-colors ${
-                                channel.isLocked
+                              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                channel.is_locked
                                   ? 'text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40'
                                   : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                               }`}
-                              title={channel.isLocked ? 'Unlock Channel' : 'Lock Channel'}
+                              title={channel.is_locked ? 'Unlock Channel' : 'Lock Channel'}
                             >
-                              {channel.isLocked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                              {channel.is_locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                             </button>
                             <button
+                              type="button"
+                              onClick={() => handleEditChannel(channel)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                              title="Edit / Manage Channel"
+                            >
+                              <Settings className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleDeleteChannel(channel.id)}
-                              className="p-1.5 rounded text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                               title="Delete Channel"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1295,7 +892,8 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1592,7 +1190,114 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
         </div>
       )}
 
-      {/* DELETE / CLEAR CHAT MODAL */}
+      {/* EDIT / MANAGE CHANNEL MODAL */}
+      {editingChannel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                  <Settings className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Edit & Manage Channel</h3>
+                  <p className="text-xs text-muted-foreground truncate max-w-[240px]">
+                    {editingChannel.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingChannel(null)}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditChannel} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Channel Name
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs">#</span>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. physics-cohort-2026"
+                    value={editChannelTitle}
+                    onChange={(e) => setEditChannelTitle(e.target.value)}
+                    className="w-full pl-7 pr-3 py-2 rounded-xl border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Pinned Topic / Announcement Banner
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Official cohort discussions & weekly assignments"
+                  value={editChannelTopic}
+                  onChange={(e) => setEditChannelTopic(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Access & Posting Permissions
+                </label>
+                <select
+                  value={editChannelLocked ? 'locked' : 'open'}
+                  onChange={(e) => setEditChannelLocked(e.target.value === 'locked')}
+                  className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="open">Open Discussion (All members can message)</option>
+                  <option value="locked">Read-Only Announcements (Instructors & Admins only)</option>
+                </select>
+              </div>
+
+              <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/5 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-rose-600 dark:text-rose-400 block">Delete Channel</span>
+                  <span className="text-[10px] text-muted-foreground">Erase all message history for all members.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idToDelete = editingChannel.id
+                    setEditingChannel(null)
+                    handleDeleteChannel(idToDelete)
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 shrink-0"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Delete</span>
+                </button>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setEditingChannel(null)}
+                  className="px-3.5 py-1.5 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
       {showDeleteModal && targetDeleteContact && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">

@@ -23,7 +23,9 @@ import {
   ChevronRight,
   GraduationCap,
   MessageSquare,
-  Bell
+  Bell,
+  CalendarCheck,
+  Wallet
 } from 'lucide-react'
 
 interface NavGroup {
@@ -77,6 +79,8 @@ export function AppSidebar({ isCollapsed, onToggleCollapse, isMobile = false }: 
           label: 'Management',
           items: [
             { title: 'Course Management', href: '/admin/courses', icon: BookOpen, badge: 'Full CRUD' },
+            { title: 'Fee Management', href: '/admin/fees', icon: Wallet, badge: 'Fin' },
+            { title: 'Attendance System', href: '/admin/attendance', icon: CalendarCheck, badge: 'Live' },
             { title: 'Shorts Studio', href: '/admin/shorts', icon: Flame, badge: 'Studio' },
             { title: 'User Management', href: '/admin/users', icon: ShieldCheck, badge: 'All' },
             { title: 'Teachers Pipeline', href: '/admin/teachers', icon: UserCheck, badge: 'Review' },
@@ -119,8 +123,9 @@ export function AppSidebar({ isCollapsed, onToggleCollapse, isMobile = false }: 
         {
           label: 'Teaching Hub',
           items: [
+            { title: 'Attendance Register', href: '/teacher/attendance', icon: CalendarCheck, badge: 'Live' },
             { title: 'Student Progress', href: '/teacher/analytics', icon: BarChart3 },
-            { title: 'Student Chat', href: '/student/chat', icon: MessageSquare, badge: 'Live' },
+            { title: 'Faculty Chat', href: '/teacher/chat', icon: MessageSquare, badge: 'Live' },
             { title: 'Notifications', href: '/student/notifications', icon: Bell },
             { title: 'Teacher Profile', href: '/teacher/profile', icon: UserCircle },
           ]
@@ -137,6 +142,8 @@ export function AppSidebar({ isCollapsed, onToggleCollapse, isMobile = false }: 
           { title: '⚡ Micro-Shorts', href: '/shorts', icon: Flame, badge: 'New' },
           { title: 'Explore Courses', href: '/student/courses', icon: Compass },
           { title: 'My Learning', href: '/student/my-courses', icon: BookmarkCheck },
+          { title: 'Fees & Receipts', href: '/student/fees', icon: Wallet },
+          { title: 'My Attendance', href: '/student/attendance', icon: CalendarCheck },
           { title: 'Student Chat', href: '/student/chat', icon: MessageSquare, badge: 'Live' },
           { title: 'Notifications', href: '/student/notifications', icon: Bell },
         ]

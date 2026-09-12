@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { getCurrentUser } from '@/actions/auth-actions'
 import { dataStore } from '@/lib/data/store'
+import { formatImageUrl } from '@/lib/utils'
 import { Course, CourseWithCurriculum, ChapterWithLectures } from '@/types/database'
 import { CourseFormData } from '@/types/course'
 
@@ -43,6 +44,7 @@ export async function getCourses(category?: string, search?: string): Promise<Co
 
         return {
           ...c,
+          thumbnail_url: formatImageUrl(c.thumbnail_url),
           teacher: t || undefined,
           _count: {
             enrollments: 0,
@@ -55,7 +57,10 @@ export async function getCourses(category?: string, search?: string): Promise<Co
     console.warn('Supabase getCourses fallback to local store:', err)
   }
 
-  return dataStore.getPublishedCourses(category, search)
+  return dataStore.getPublishedCourses(category, search).map((c) => ({
+    ...c,
+    thumbnail_url: formatImageUrl(c.thumbnail_url)
+  }))
 }
 
 export async function getTeacherCourses(teacherId?: string): Promise<Course[]> {
@@ -93,6 +98,7 @@ export async function getTeacherCourses(teacherId?: string): Promise<Course[]> {
 
         return {
           ...c,
+          thumbnail_url: formatImageUrl(c.thumbnail_url),
           teacher: teacherRes.data || undefined,
           _count: {
             enrollments: 0,
@@ -136,6 +142,7 @@ export async function getAllCoursesAdmin(): Promise<Course[]> {
 
         return {
           ...c,
+          thumbnail_url: formatImageUrl(c.thumbnail_url),
           teacher: t || undefined,
           _count: {
             enrollments: 0,
@@ -148,7 +155,10 @@ export async function getAllCoursesAdmin(): Promise<Course[]> {
     console.warn('Supabase getAllCoursesAdmin fallback:', err)
   }
 
-  return dataStore.getAllCourses()
+  return dataStore.getAllCourses().map((c) => ({
+    ...c,
+    thumbnail_url: formatImageUrl(c.thumbnail_url)
+  }))
 }
 
 export async function getCourseById(
@@ -223,6 +233,7 @@ export async function getCourseById(
 
       return {
         ...rawCourse,
+        thumbnail_url: formatImageUrl(rawCourse.thumbnail_url),
         teacher: teacherRes.data || {
           id: rawCourse.teacher_id,
           full_name: 'Instructor',
@@ -249,7 +260,7 @@ export async function getCourseById(
   if (localCourse && activeUser.role === 'student' && localCourse.status !== 'published' && !localCourse.is_enrolled) {
     return null
   }
-  return localCourse
+  return localCourse ? { ...localCourse, thumbnail_url: formatImageUrl(localCourse.thumbnail_url) } : null
 }
 
 export async function createCourse(data: CourseFormData): Promise<{ success: boolean; course?: Course; error?: string }> {
@@ -259,6 +270,9 @@ export async function createCourse(data: CourseFormData): Promise<{ success: boo
   }
   const newCourseId = `00000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`
   const targetTeacherId = currentUser.role === 'admin' && data.teacher_id ? data.teacher_id : currentUser.id
+  const normalizedThumbnail = formatImageUrl(
+    data.thumbnail_url || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80'
+  )
 
   try {
     const supabase = createAdminClient()
@@ -270,7 +284,7 @@ export async function createCourse(data: CourseFormData): Promise<{ success: boo
         title: data.title,
         description: data.description || '',
         category: data.category || 'General',
-        thumbnail_url: data.thumbnail_url || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80',
+        thumbnail_url: normalizedThumbnail,
         status: data.status || 'draft'
       })
       .select()
@@ -300,7 +314,7 @@ export async function createCourse(data: CourseFormData): Promise<{ success: boo
     title: data.title,
     description: data.description || '',
     category: data.category || 'General',
-    thumbnail_url: data.thumbnail_url || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80',
+    thumbnail_url: normalizedThumbnail,
     status: data.status || 'draft',
     price: data.price || 0
   })
@@ -329,12 +343,17 @@ export async function updateCourse(
     }
   }
 
+  const payload = { ...data }
+  if (payload.thumbnail_url) {
+    payload.thumbnail_url = formatImageUrl(payload.thumbnail_url)
+  }
+
   try {
     const supabase = createAdminClient()
     const { data: updated } = await supabase
       .from('courses')
       .update({
-        ...data,
+        ...payload,
         updated_at: new Date().toISOString()
       })
       .eq('id', courseId)
@@ -342,7 +361,7 @@ export async function updateCourse(
       .maybeSingle()
 
     if (updated) {
-      dataStore.updateCourse(courseId, data)
+      dataStore.updateCourse(courseId, payload)
       revalidatePath('/admin/courses')
       revalidatePath('/admin')
       revalidatePath(`/teacher/courses/${courseId}`)
@@ -354,7 +373,7 @@ export async function updateCourse(
     console.warn('Supabase updateCourse fallback:', err)
   }
 
-  const localUpdated = dataStore.updateCourse(courseId, data)
+  const localUpdated = dataStore.updateCourse(courseId, payload)
   revalidatePath('/admin/courses')
   revalidatePath('/admin')
   revalidatePath(`/teacher/courses/${courseId}`)

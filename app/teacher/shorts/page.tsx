@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getTeacherCourses } from '@/actions/course-actions'
 import { getShortVideos, deleteShortVideoAction } from '@/actions/short-actions'
 import { ShortUploadModal } from '@/components/shorts/ShortUploadModal'
+import { formatImageUrl } from '@/lib/utils'
 import { 
   Video, 
   Flame, 
@@ -124,8 +125,9 @@ export default async function TeacherShortsPage() {
                   {/* Thumbnail */}
                   <div className="relative w-20 h-28 rounded-xl overflow-hidden bg-black shrink-0 border border-zinc-200 dark:border-zinc-800">
                     <img
-                      src={short.thumbnail_url}
+                      src={formatImageUrl(short.thumbnail_url)}
                       alt={short.title}
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
                     <span className="absolute bottom-1 right-1 px-1 rounded bg-black/80 text-[10px] font-mono text-white">

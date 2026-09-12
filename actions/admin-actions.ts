@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
 import { Profile, UserRole, TeacherStatus } from '@/types/database'
-import { createCometChatUserServer } from '@/lib/cometchat-server'
 import { getCurrentUser } from '@/actions/auth-actions'
 
 export async function getAdminPlatformStats() {
@@ -144,13 +143,6 @@ export async function createUser(data: CreateUserData): Promise<{ success: boole
     }
 
     if (!error && created) {
-      // Auto-create corresponding chat user in CometChat cloud
-      try {
-        await createCometChatUserServer(created)
-      } catch (chatErr) {
-        console.warn('Auto create CometChat user warning:', chatErr)
-      }
-
       dataStore.getAllProfilesAdmin().unshift(created)
       revalidatePath('/admin')
       revalidatePath('/admin/users')
@@ -166,13 +158,6 @@ export async function createUser(data: CreateUserData): Promise<{ success: boole
   } catch (err: any) {
     console.error('Supabase createUser exception:', err)
     return { success: false, error: err.message || 'Failed to create user' }
-  }
-
-  // Auto-create corresponding chat user in CometChat cloud (local store fallback)
-  try {
-    await createCometChatUserServer(newProfile)
-  } catch (chatErr) {
-    console.warn('Auto create CometChat user warning:', chatErr)
   }
 
   dataStore.getAllProfilesAdmin().unshift(newProfile)

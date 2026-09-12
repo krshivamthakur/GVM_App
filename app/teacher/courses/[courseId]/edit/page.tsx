@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { getCourseById, updateCourse, deleteCourse } from '@/actions/course-actions'
 import { CourseStatus, CourseWithCurriculum } from '@/types/database'
+import { formatImageUrl, DEFAULT_FALLBACK_THUMBNAIL } from '@/lib/utils'
 import { ArrowLeft, Trash2, Save } from 'lucide-react'
 
 const CATEGORIES = ['Programming', 'Physics', 'Chemistry', 'Mathematics', 'Biology', 'General']
@@ -49,7 +50,7 @@ export default function EditCoursePage() {
         title,
         description,
         category,
-        thumbnail_url: thumbnailUrl,
+        thumbnail_url: formatImageUrl(thumbnailUrl),
         status
       })
       router.push(`/teacher/courses/${courseId}`)
@@ -163,16 +164,28 @@ export default function EditCoursePage() {
             <div className="flex items-center gap-3">
               <input
                 type="text"
+                placeholder="https://images.unsplash.com/... or Google Drive share link"
                 value={thumbnailUrl}
                 onChange={(e) => setThumbnailUrl(e.target.value)}
                 className="flex-1 px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
               {thumbnailUrl && (
                 <div className="w-12 h-10 rounded-lg overflow-hidden border border-zinc-200 shrink-0">
-                  <img src={thumbnailUrl} alt="Thumbnail preview" className="w-full h-full object-cover" />
+                  <img
+                    src={formatImageUrl(thumbnailUrl)}
+                    alt="Thumbnail preview"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = DEFAULT_FALLBACK_THUMBNAIL
+                    }}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
               )}
             </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Supports direct image URLs and Google Drive share links (automatically converted).
+            </p>
           </div>
 
           <div className="pt-4 flex justify-end gap-3">

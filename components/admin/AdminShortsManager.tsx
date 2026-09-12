@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ShortVideo } from '@/types/database'
 import { createShortVideoAction, deleteShortVideoAction } from '@/actions/short-actions'
+import { formatImageUrl, DEFAULT_FALLBACK_THUMBNAIL } from '@/lib/utils'
 import { 
   Flame, 
   Plus, 
@@ -238,11 +239,15 @@ export function AdminShortsManager({ initialShorts }: AdminShortsManagerProps) {
                   className="relative aspect-9/16 max-h-72 w-full bg-black cursor-pointer overflow-hidden group/thumb"
                 >
                   <img
-                    src={
+                    src={formatImageUrl(
                       short.thumbnail_url ||
                       'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&auto=format&fit=crop&q=80'
-                    }
+                    )}
                     alt={short.title}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = DEFAULT_FALLBACK_THUMBNAIL
+                    }}
                     className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-80 group-hover/thumb:opacity-100 transition-opacity">

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getTeacherCourses } from '@/actions/course-actions'
 import { Plus, BookOpen, Settings, Eye, Video } from 'lucide-react'
+import { formatImageUrl, DEFAULT_FALLBACK_THUMBNAIL } from '@/lib/utils'
 
 export default async function TeacherCoursesPage() {
   const courses = await getTeacherCourses()
@@ -18,13 +19,13 @@ export default async function TeacherCoursesPage() {
             My Created Courses ({courses.length})
           </h1>
           <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-            Build chapters, upload video files, add PDF study notes, and publish when ready.
+            Manage your course curriculums, lectures, video lessons, and resources.
           </p>
         </div>
 
         <Link
           href="/teacher/courses/new"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-md shadow-purple-600/20 transition-all self-start sm:self-center"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-all cursor-pointer w-fit"
         >
           <Plus className="w-4 h-4" />
           <span>Create New Course</span>
@@ -42,8 +43,9 @@ export default async function TeacherCoursesPage() {
             >
               <div className="aspect-video relative bg-zinc-100 dark:bg-zinc-800">
                 <img
-                  src={course.thumbnail_url || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80'}
+                  src={formatImageUrl(course.thumbnail_url)}
                   alt={course.title}
+                  referrerPolicy="no-referrer"
                   className="w-full h-full object-cover"
                 />
                 <div className="absolute top-3 left-3">

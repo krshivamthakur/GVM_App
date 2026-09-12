@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { ShortVideo } from '@/types/database'
+import { formatImageUrl, DEFAULT_FALLBACK_THUMBNAIL } from '@/lib/utils'
 import { Play, Sparkles, Flame, ArrowRight, Eye, Heart } from 'lucide-react'
 
 interface ShortsShelfProps {
@@ -59,8 +60,12 @@ export function ShortsShelf({
             {/* Thumbnail Poster with Zoom */}
             <div className="absolute inset-0 z-0">
               <img
-                src={short.thumbnail_url}
+                src={formatImageUrl(short.thumbnail_url)}
                 alt={short.title}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = DEFAULT_FALLBACK_THUMBNAIL
+                }}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/20" />

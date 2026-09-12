@@ -10,10 +10,10 @@ export const metadata: Metadata = {
   description: 'Manage cohort study groups, instructor channels, moderate real-time messages, and broadcast announcements.',
 }
 
-import { getAllUsers } from '@/actions/admin-actions'
+import { getChatUsersAction } from '@/actions/chat-actions'
 
 export default async function AdminChatPage() {
-  const users = await getAllUsers('all')
+  const users = await getChatUsersAction()
 
   return (
     <div className="space-y-5">

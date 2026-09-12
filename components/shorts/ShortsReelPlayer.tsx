@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ShortVideo, ShortComment } from '@/types/database'
 import { 
   Heart, 
@@ -24,7 +25,7 @@ import {
   ArrowLeft
 } from 'lucide-react'
 import { toggleLikeShortVideo, toggleSaveShortVideo, addShortCommentAction } from '@/actions/short-actions'
-import { formatDisplayDate } from '@/lib/utils'
+import { formatDisplayDate, formatImageUrl } from '@/lib/utils'
 import { parseVideoUrl } from '@/components/video/VideoPlayer'
 
 interface ShortsReelPlayerProps {
@@ -38,6 +39,7 @@ export function ShortsReelPlayer({
   initialIndex = 0,
   onIndexChange
 }: ShortsReelPlayerProps) {
+  const router = useRouter()
   const [currentIndex, setCurrentIndex] = useState(initialIndex)
   const [isPlaying, setIsPlaying] = useState(true)
   const [isMuted, setIsMuted] = useState(false)
@@ -48,13 +50,18 @@ export function ShortsReelPlayer({
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [showSwipeHint, setShowSwipeHint] = useState(true)
 
-  // Drag & Swipe physics state
-  const [dragOffset, setDragOffset] = useState<number>(0)
+  // Drag & Swipe physics state (both Vertical and Horizontal)
+  const [dragOffsetY, setDragOffsetY] = useState<number>(0)
+  const [dragOffsetX, setDragOffsetX] = useState<number>(0)
   const [isSwiping, setIsSwiping] = useState<boolean>(false)
   const touchStartY = useRef<number | null>(null)
   const touchStartX = useRef<number | null>(null)
+  const currentDiffX = useRef<number>(0)
+  const currentDiffY = useRef<number>(0)
+  const directionLocked = useRef<'vertical' | 'horizontal' | null>(null)
   const isDragging = useRef<boolean>(false)
   const hasDragged = useRef<boolean>(false)
+  const isExiting = useRef<boolean>(false)
   const wheelCooldown = useRef<boolean>(false)
 
   // Local state for interactive counters & toggles
@@ -63,6 +70,20 @@ export function ShortsReelPlayer({
 
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Navigate back from the shorts section
+  const handleBack = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      const hasHistory =
+        (window.history.state && typeof window.history.state.idx === 'number' && window.history.state.idx > 0) ||
+        (document.referrer && document.referrer.includes(window.location.host))
+      if (hasHistory) {
+        router.back()
+      } else {
+        router.push('/student')
+      }
+    }
+  }, [router])
 
   // Keep localShorts synced if props change
   useEffect(() => {
@@ -114,23 +135,23 @@ export function ShortsReelPlayer({
     })
   }, [isMuted])
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentIndex < localShorts.length - 1) {
       setCurrentIndex((prev) => prev + 1)
       setIsPlaying(true)
       setShowComments(false)
       setShowSwipeHint(false)
     }
-  }
+  }, [currentIndex, localShorts.length])
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1)
       setIsPlaying(true)
       setShowComments(false)
       setShowSwipeHint(false)
     }
-  }
+  }, [currentIndex])
 
   // Keyboard navigation
   useEffect(() => {
@@ -143,6 +164,16 @@ export function ShortsReelPlayer({
       } else if (e.key === 'ArrowUp' || e.key === 'k') {
         e.preventDefault()
         handlePrev()
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        handleBack()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        if (showComments) {
+          setShowComments(false)
+        } else {
+          handleBack()
+        }
       } else if (e.key === ' ') {
         e.preventDefault()
         togglePlayPause()
@@ -154,109 +185,194 @@ export function ShortsReelPlayer({
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentIndex, isPlaying, showComments, localShorts.length])
+  }, [handleNext, handlePrev, handleBack, showComments])
 
   // Swipe Gestures: Touch Events
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (showComments) return
+    if (showComments || isExiting.current) return
+    const target = e.target as HTMLElement
+    if (target.closest('button') || target.closest('a') || target.closest('input')) return
+
     touchStartY.current = e.touches[0].clientY
     touchStartX.current = e.touches[0].clientX
+    currentDiffX.current = 0
+    currentDiffY.current = 0
+    directionLocked.current = null
     isDragging.current = true
     hasDragged.current = false
     setIsSwiping(true)
-    setDragOffset(0)
+    setDragOffsetY(0)
+    setDragOffsetX(0)
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging.current || touchStartY.current === null || touchStartX.current === null || showComments) return
+    if (!isDragging.current || touchStartY.current === null || touchStartX.current === null || showComments || isExiting.current) return
     const currentY = e.touches[0].clientY
     const currentX = e.touches[0].clientX
     const diffY = currentY - touchStartY.current
     const diffX = currentX - touchStartX.current
+    currentDiffX.current = diffX
+    currentDiffY.current = diffY
 
-    // Ignore if horizontal gesture dominates
-    if (Math.abs(diffX) > Math.abs(diffY)) return
-
-    if (Math.abs(diffY) > 8) {
-      hasDragged.current = true
+    // Determine gesture direction lock after 6px movement
+    if (!directionLocked.current) {
+      if (Math.abs(diffX) > 6 || Math.abs(diffY) > 6) {
+        hasDragged.current = true
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+          directionLocked.current = 'horizontal'
+        } else {
+          directionLocked.current = 'vertical'
+        }
+      } else {
+        return
+      }
     }
 
-    // Apply rubber-band resistance at top/bottom extremes
-    let offset = diffY
-    if ((currentIndex === 0 && offset > 0) || (currentIndex === localShorts.length - 1 && offset < 0)) {
-      offset = offset * 0.3
+    if (directionLocked.current === 'horizontal') {
+      // Swiping horizontally (left or right to exit)
+      setDragOffsetX(diffX)
+      setDragOffsetY(0)
+    } else if (directionLocked.current === 'vertical') {
+      // Swiping vertically (up for next, down for prev)
+      let offset = diffY
+      if ((currentIndex === 0 && offset > 0) || (currentIndex === localShorts.length - 1 && offset < 0)) {
+        offset = offset * 0.3
+      }
+      setDragOffsetY(offset)
+      setDragOffsetX(0)
     }
-    setDragOffset(offset)
   }
 
   const handleTouchEnd = () => {
-    if (!isDragging.current) return
+    if (!isDragging.current || isExiting.current) return
     isDragging.current = false
     setIsSwiping(false)
 
     const threshold = 55 // Min distance for swipe
-    if (dragOffset < -threshold) {
-      // Swiped UP -> Next video
-      handleNext()
-    } else if (dragOffset > threshold) {
-      // Swiped DOWN -> Previous video
-      handlePrev()
+    const diffX = currentDiffX.current
+    const diffY = currentDiffY.current
+    const lock = directionLocked.current
+
+    if (lock === 'horizontal' || (lock === null && Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > threshold)) {
+      if (Math.abs(diffX) > threshold) {
+        // Swiped LEFT or RIGHT -> Exit shorts section
+        isExiting.current = true
+        setShowSwipeHint(false)
+        setDragOffsetX(diffX > 0 ? 380 : -380)
+        setTimeout(() => {
+          handleBack()
+        }, 200)
+        return
+      }
+    } else if (lock === 'vertical' || (lock === null && Math.abs(diffY) > threshold)) {
+      if (diffY < -threshold) {
+        // Swiped UP -> Next video
+        handleNext()
+      } else if (diffY > threshold) {
+        // Swiped DOWN -> Previous video
+        handlePrev()
+      }
     }
 
-    setDragOffset(0)
+    // Reset offsets if not exiting
+    setDragOffsetY(0)
+    setDragOffsetX(0)
+    directionLocked.current = null
     touchStartY.current = null
     touchStartX.current = null
   }
 
   // Desktop Mouse Drag Support
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (showComments) return
+    if (showComments || isExiting.current) return
     if (e.button !== 0) return
     const target = e.target as HTMLElement
     if (target.closest('button') || target.closest('a') || target.closest('input')) return
 
     touchStartY.current = e.clientY
     touchStartX.current = e.clientX
+    currentDiffX.current = 0
+    currentDiffY.current = 0
+    directionLocked.current = null
     isDragging.current = true
     hasDragged.current = false
     setIsSwiping(true)
-    setDragOffset(0)
+    setDragOffsetY(0)
+    setDragOffsetX(0)
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging.current || touchStartY.current === null || showComments) return
+    if (!isDragging.current || touchStartY.current === null || touchStartX.current === null || showComments || isExiting.current) return
     const diffY = e.clientY - touchStartY.current
-    if (Math.abs(diffY) > 8) {
-      hasDragged.current = true
+    const diffX = e.clientX - touchStartX.current
+    currentDiffX.current = diffX
+    currentDiffY.current = diffY
+
+    if (!directionLocked.current) {
+      if (Math.abs(diffX) > 6 || Math.abs(diffY) > 6) {
+        hasDragged.current = true
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+          directionLocked.current = 'horizontal'
+        } else {
+          directionLocked.current = 'vertical'
+        }
+      } else {
+        return
+      }
     }
 
-    let offset = diffY
-    if ((currentIndex === 0 && offset > 0) || (currentIndex === localShorts.length - 1 && offset < 0)) {
-      offset = offset * 0.3
+    if (directionLocked.current === 'horizontal') {
+      setDragOffsetX(diffX)
+      setDragOffsetY(0)
+    } else if (directionLocked.current === 'vertical') {
+      let offset = diffY
+      if ((currentIndex === 0 && offset > 0) || (currentIndex === localShorts.length - 1 && offset < 0)) {
+        offset = offset * 0.3
+      }
+      setDragOffsetY(offset)
+      setDragOffsetX(0)
     }
-    setDragOffset(offset)
   }
 
   const handleMouseUp = () => {
-    if (!isDragging.current) return
+    if (!isDragging.current || isExiting.current) return
     isDragging.current = false
     setIsSwiping(false)
 
     const threshold = 55
-    if (dragOffset < -threshold) {
-      handleNext()
-    } else if (dragOffset > threshold) {
-      handlePrev()
+    const diffX = currentDiffX.current
+    const diffY = currentDiffY.current
+    const lock = directionLocked.current
+
+    if (lock === 'horizontal' || (lock === null && Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > threshold)) {
+      if (Math.abs(diffX) > threshold) {
+        // Dragged LEFT or RIGHT -> Exit shorts section
+        isExiting.current = true
+        setShowSwipeHint(false)
+        setDragOffsetX(diffX > 0 ? 380 : -380)
+        setTimeout(() => {
+          handleBack()
+        }, 200)
+        return
+      }
+    } else if (lock === 'vertical' || (lock === null && Math.abs(diffY) > threshold)) {
+      if (diffY < -threshold) {
+        handleNext()
+      } else if (diffY > threshold) {
+        handlePrev()
+      }
     }
 
-    setDragOffset(0)
+    setDragOffsetY(0)
+    setDragOffsetX(0)
+    directionLocked.current = null
     touchStartY.current = null
     touchStartX.current = null
   }
 
   // Wheel / Trackpad Scroll Navigation
   const handleWheel = (e: React.WheelEvent) => {
-    if (showComments) return
+    if (showComments || isExiting.current) return
     if (wheelCooldown.current) return
 
     if (Math.abs(e.deltaY) > 25) {
@@ -449,8 +565,9 @@ export function ShortsReelPlayer({
             <div
               key={short.id}
               style={{
-                transform: `translateY(calc(${diff * 100}% + ${dragOffset}px))`,
-                transition: isSwiping ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1)'
+                transform: `translate(${isCurrent ? dragOffsetX : 0}px, calc(${diff * 100}% + ${dragOffsetY}px))`,
+                opacity: isCurrent && Math.abs(dragOffsetX) > 0 ? Math.max(0.35, 1 - Math.abs(dragOffsetX) / 380) : 1,
+                transition: isSwiping ? 'none' : 'transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 320ms ease-out'
               }}
               className="absolute inset-0 w-full h-full will-change-transform z-10 flex flex-col justify-between"
             >
@@ -475,8 +592,9 @@ export function ShortsReelPlayer({
                     />
                   ) : (
                     <img
-                      src={short.thumbnail_url}
+                      src={formatImageUrl(short.thumbnail_url)}
                       alt={short.title}
+                      referrerPolicy="no-referrer"
                       className="absolute inset-0 w-full h-full object-cover opacity-80"
                     />
                   )}
@@ -502,7 +620,7 @@ export function ShortsReelPlayer({
                     videoRefs.current[idx] = el
                   }}
                   src={parsed.rawUrl || '/videos/sample-short-1.mp4'}
-                  poster={short.thumbnail_url}
+                  poster={formatImageUrl(short.thumbnail_url)}
                   loop
                   playsInline
                   muted={isMuted}
@@ -693,13 +811,14 @@ export function ShortsReelPlayer({
         {/* Top Floating Controls Header (Always on Top) */}
         <div className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4 pt-4 pointer-events-none">
           <div className="flex items-center gap-2.5 pointer-events-auto">
-            <Link
-              href="/student"
+            <button
+              type="button"
+              onClick={handleBack}
               className="p-2 rounded-full bg-black/50 hover:bg-black/80 text-white backdrop-blur-md transition-all border border-white/10 cursor-pointer shadow-sm hover:scale-105 flex items-center justify-center"
-              title="Exit Shorts / Back to Portal"
+              title="Exit Shorts / Back to Portal (Swipe Left or Right)"
             >
               <ArrowLeft className="w-4 h-4 text-white" />
-            </Link>
+            </button>
             <span className="px-2.5 py-1 rounded-full bg-indigo-600/90 text-white font-bold text-[11px] tracking-wider uppercase flex items-center gap-1 shadow-sm">
               <Sparkles className="w-3 h-3" />
               <span>Micro-Byte</span>
@@ -722,6 +841,31 @@ export function ShortsReelPlayer({
           </div>
         </div>
 
+        {/* Visual Dynamic Cue for Horizontal Swipe to Exit */}
+        {Math.abs(dragOffsetX) > 20 && (
+          <div
+            className={`absolute top-1/2 z-40 -translate-y-1/2 pointer-events-none flex items-center gap-2 px-4 py-2.5 rounded-full bg-black/90 backdrop-blur-md text-white border border-white/20 shadow-2xl transition-all duration-100 ${
+              dragOffsetX < 0 ? 'left-4' : 'right-4'
+            }`}
+          >
+            {dragOffsetX < 0 ? (
+              <>
+                <ArrowLeft className="w-5 h-5 text-indigo-400 animate-pulse" />
+                <span className="text-xs font-bold tracking-wide">
+                  {Math.abs(dragOffsetX) >= 55 ? 'Release to exit' : 'Swipe left to exit'}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="text-xs font-bold tracking-wide">
+                  {Math.abs(dragOffsetX) >= 55 ? 'Release to exit' : 'Swipe right to exit'}
+                </span>
+                <ArrowRight className="w-5 h-5 text-indigo-400 animate-pulse" />
+              </>
+            )}
+          </div>
+        )}
+
         {/* Play / Pause Animated Icon Overlay */}
         {showPlayStateAnim && (
           <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
@@ -731,12 +875,14 @@ export function ShortsReelPlayer({
           </div>
         )}
 
-        {/* Mobile Swipe-Up Helper Hint (Visible initially on first video) */}
+        {/* Swipe Helper Hint (Visible initially on first video) */}
         {showSwipeHint && currentIndex === 0 && (
-          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center animate-bounce duration-1000 opacity-90 sm:hidden">
+          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center animate-bounce duration-1000 opacity-90">
             <ChevronUp className="w-5 h-5 text-white drop-shadow" />
-            <span className="text-[10px] font-semibold text-white bg-black/70 backdrop-blur-xs px-2.5 py-1 rounded-full shadow-md border border-white/10 whitespace-nowrap">
-              Swipe up for next
+            <span className="text-[10px] font-semibold text-white bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-full shadow-lg border border-white/15 whitespace-nowrap flex items-center gap-1.5">
+              <span>Swipe ↕ for next/prev</span>
+              <span className="text-white/40">•</span>
+              <span>↔ to exit</span>
             </span>
           </div>
         )}
@@ -853,6 +999,15 @@ export function ShortsReelPlayer({
           title="Next Short (Swipe Up / Down Arrow)"
         >
           <ChevronDown className="w-5 h-5" />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleBack}
+          className="p-3 rounded-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-200 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 dark:hover:text-rose-400 shadow-md transition-all hover:scale-105 cursor-pointer mt-2"
+          title="Exit Shorts / Back to Portal (Swipe Left or Right / Esc)"
+        >
+          <X className="w-5 h-5" />
         </button>
       </div>
     </div>

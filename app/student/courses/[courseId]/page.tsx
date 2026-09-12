@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getCourseById, enrollCourse } from '@/actions/course-actions'
 import { ChapterAccordion } from '@/components/course/ChapterAccordion'
+import { formatImageUrl } from '@/lib/utils'
 import { 
   PlayCircle, 
   BookOpen, 
@@ -103,8 +104,9 @@ export default async function CourseDetailPage({
           <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 p-6 space-y-5">
             <div className="aspect-video rounded-xl overflow-hidden bg-zinc-200 dark:bg-zinc-800 relative">
               <img
-                src={course.thumbnail_url || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80'}
+                src={formatImageUrl(course.thumbnail_url)}
                 alt={course.title}
+                referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
               />
             </div>

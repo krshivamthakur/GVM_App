@@ -8,8 +8,7 @@ INSERT INTO public.profiles (id, full_name, email, avatar_url, role, teacher_sta
 VALUES 
   ('00000000-0000-0000-0000-000000000001', 'Alex Johnson', 'student@example.com', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80', 'student', 'approved', 'Computer Science enthusiast & aspiring Fullstack Engineer.'),
   ('00000000-0000-0000-0000-000000000002', 'Prof. Ramesh Sharma', 'teacher@example.com', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80', 'teacher', 'approved', 'Senior Software Architect and Computer Science Educator with 15+ years experience.'),
-  ('00000000-0000-0000-0000-000000000003', 'Dr. Emily Watson', 'emily.physics@example.com', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80', 'teacher', 'approved', 'PhD in Theoretical Physics. Passionate about simplifying complex science concepts.'),
-  ('00000000-0000-0000-0000-000000000004', 'Platform Administrator', 'admin@example.com', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80', 'admin', 'approved', 'Platform System Administrator and Curriculum Director.')
+  ('00000000-0000-0000-0000-000000000003', 'Dr. Emily Watson', 'emily.physics@example.com', 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80', 'teacher', 'approved', 'PhD in Theoretical Physics. Passionate about simplifying complex science concepts.')
 ON CONFLICT (id) DO NOTHING;
 
 -- 2. Insert Starter Courses
