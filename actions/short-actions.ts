@@ -50,7 +50,7 @@ export async function getShortVideos(tag?: string, search?: string): Promise<Sho
 
     if (!error && data) {
       if (data.length === 0) return []
-      const activeUser = dataStore.getActiveUser()
+      const activeUser = await getCurrentUser()
       return data.map((s: any) => ({
         id: s.id,
         title: s.title,
@@ -64,7 +64,7 @@ export async function getShortVideos(tag?: string, search?: string): Promise<Sho
         course_title: s.course_title,
         views_count: s.views_count || 0,
         likes_count: s.likes?.length ?? s.likes_count ?? 0,
-        is_liked: s.likes ? s.likes.some((l: any) => l.user_id === activeUser.id) : false,
+        is_liked: activeUser && s.likes ? s.likes.some((l: any) => l.user_id === activeUser.id) : false,
         is_saved: false,
         tags: s.tags || [],
         created_at: s.created_at,
@@ -157,7 +157,10 @@ export async function getShortVideoById(id: string): Promise<ShortVideo | null> 
 export async function toggleLikeShortVideo(id: string): Promise<{ likes_count: number; is_liked: boolean }> {
   try {
     const supabase = createAdminClient()
-    const activeUser = dataStore.getActiveUser()
+    const activeUser = await getCurrentUser()
+    if (!activeUser) {
+      return { likes_count: 0, is_liked: false }
+    }
 
     // Check if like exists in short_likes table
     const { data: existingLike, error: likeSelectErr } = await supabase
@@ -223,7 +226,10 @@ export async function toggleSaveShortVideo(id: string): Promise<{ is_saved: bool
 }
 
 export async function addShortCommentAction(shortId: string, content: string): Promise<ShortComment | null> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = await getCurrentUser()
+  if (!activeUser) {
+    return null
+  }
 
   try {
     const supabase = createAdminClient()
@@ -286,8 +292,10 @@ export async function createShortVideoAction(formData: FormData): Promise<{ succ
       }
     }
 
-    const user = await getCurrentUser()
-    const activeUser = user || dataStore.getActiveUser()
+    const activeUser = await getCurrentUser()
+    if (!activeUser || (activeUser.role !== 'teacher' && activeUser.role !== 'admin')) {
+      return { success: false, error: 'Unauthorized: Only teachers and administrators can create shorts.' }
+    }
 
     // Try Supabase insert
     try {
@@ -356,6 +364,11 @@ export async function createShortVideoAction(formData: FormData): Promise<{ succ
 }
 
 export async function getAllShortsAdmin(): Promise<ShortVideo[]> {
+  const activeUser = await getCurrentUser()
+  if (!activeUser || activeUser.role !== 'admin') {
+    return []
+  }
+
   try {
     const supabase = createAdminClient()
     const { data, error } = await supabase
@@ -392,6 +405,19 @@ export async function getAllShortsAdmin(): Promise<ShortVideo[]> {
 }
 
 export async function deleteShortVideoAction(id: string): Promise<boolean> {
+  const activeUser = await getCurrentUser()
+  if (!activeUser || (activeUser.role !== 'teacher' && activeUser.role !== 'admin')) {
+    return false
+  }
+
+  // Enforce ownership: Teachers can only delete their own shorts
+  if (activeUser.role === 'teacher') {
+    const existing = dataStore.getShortById(id)
+    if (existing && existing.teacher_id !== activeUser.id) {
+      return false
+    }
+  }
+
   try {
     const supabase = createAdminClient()
     await supabase.from('shorts').delete().eq('id', id)

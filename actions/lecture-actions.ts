@@ -8,9 +8,16 @@ import { Lecture, Chapter, Note } from '@/types/database'
 import { LectureFormData, ChapterFormData, NoteFormData } from '@/types/lecture'
 
 export async function createChapter(data: ChapterFormData): Promise<{ success: boolean; chapter?: Chapter; error?: string }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
-    return { success: false, error: 'Access denied: Students cannot manage course curriculum.' }
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
+    return { success: false, error: 'Access denied: Only teachers and administrators can manage course curriculum.' }
+  }
+
+  if (currentUser.role === 'teacher') {
+    const course = dataStore.getCourseById(data.course_id)
+    if (course && course.teacher_id !== currentUser.id) {
+      return { success: false, error: 'Forbidden: You can only manage chapters for your own courses.' }
+    }
   }
 
   try {
@@ -52,10 +59,18 @@ export async function updateChapter(
   courseId: string,
   data: Partial<ChapterFormData>
 ): Promise<{ success: boolean; chapter?: Chapter; error?: string }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
-    return { success: false, error: 'Access denied: Students cannot manage course curriculum.' }
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
+    return { success: false, error: 'Access denied: Only teachers and administrators can manage course curriculum.' }
   }
+
+  if (currentUser.role === 'teacher') {
+    const course = dataStore.getCourseById(courseId)
+    if (course && course.teacher_id !== currentUser.id) {
+      return { success: false, error: 'Forbidden: You can only edit chapters in your own courses.' }
+    }
+  }
+
   try {
     const supabase = createAdminClient()
     await supabase.from('chapters').update(data).eq('id', chapterId)
@@ -70,9 +85,16 @@ export async function updateChapter(
 }
 
 export async function deleteChapter(chapterId: string, courseId: string): Promise<{ success: boolean }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
     return { success: false }
+  }
+
+  if (currentUser.role === 'teacher') {
+    const course = dataStore.getCourseById(courseId)
+    if (course && course.teacher_id !== currentUser.id) {
+      return { success: false }
+    }
   }
 
   try {
@@ -89,9 +111,16 @@ export async function deleteChapter(chapterId: string, courseId: string): Promis
 }
 
 export async function createLecture(data: LectureFormData, courseId: string): Promise<{ success: boolean; lecture?: Lecture; error?: string }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
-    return { success: false, error: 'Access denied: Students cannot create lectures.' }
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
+    return { success: false, error: 'Access denied: Only teachers and administrators can create lectures.' }
+  }
+
+  if (currentUser.role === 'teacher') {
+    const course = dataStore.getCourseById(courseId)
+    if (course && course.teacher_id !== currentUser.id) {
+      return { success: false, error: 'Forbidden: You can only create lectures in your own courses.' }
+    }
   }
 
   try {
@@ -162,9 +191,16 @@ export async function updateLecture(
   courseId: string,
   data: Partial<LectureFormData>
 ): Promise<{ success: boolean; lecture?: Lecture; error?: string }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
-    return { success: false, error: 'Access denied: Students cannot update lectures.' }
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
+    return { success: false, error: 'Access denied: Only teachers and administrators can update lectures.' }
+  }
+
+  if (currentUser.role === 'teacher') {
+    const course = dataStore.getCourseById(courseId)
+    if (course && course.teacher_id !== currentUser.id) {
+      return { success: false, error: 'Forbidden: You can only edit lectures in your own courses.' }
+    }
   }
 
   try {
@@ -182,9 +218,16 @@ export async function updateLecture(
 }
 
 export async function deleteLecture(lectureId: string, courseId: string): Promise<{ success: boolean }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
     return { success: false }
+  }
+
+  if (currentUser.role === 'teacher') {
+    const course = dataStore.getCourseById(courseId)
+    if (course && course.teacher_id !== currentUser.id) {
+      return { success: false }
+    }
   }
 
   try {
@@ -202,8 +245,8 @@ export async function deleteLecture(lectureId: string, courseId: string): Promis
 }
 
 export async function getLectureDetails(lectureId: string, studentId?: string) {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  const targetStudentId = activeUser.role === 'student' ? activeUser.id : (studentId || activeUser.id)
+  const currentUser = await getCurrentUser()
+  const targetStudentId = currentUser?.role === 'student' ? currentUser.id : (studentId || currentUser?.id)
 
   try {
     const supabase = createAdminClient()
@@ -247,9 +290,16 @@ export async function getLectureDetails(lectureId: string, studentId?: string) {
 }
 
 export async function addNoteToLecture(data: NoteFormData, courseId: string): Promise<{ success: boolean; note?: Note; error?: string }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
-    return { success: false, error: 'Access denied: Students cannot add notes.' }
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
+    return { success: false, error: 'Access denied: Only teachers and administrators can add notes.' }
+  }
+
+  if (currentUser.role === 'teacher') {
+    const course = dataStore.getCourseById(courseId)
+    if (course && course.teacher_id !== currentUser.id) {
+      return { success: false, error: 'Forbidden: You can only add notes to your own courses.' }
+    }
   }
 
   try {
@@ -289,9 +339,16 @@ export async function addNoteToLecture(data: NoteFormData, courseId: string): Pr
 }
 
 export async function deleteNote(noteId: string, courseId: string): Promise<{ success: boolean }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
     return { success: false }
+  }
+
+  if (currentUser.role === 'teacher') {
+    const course = dataStore.getCourseById(courseId)
+    if (course && course.teacher_id !== currentUser.id) {
+      return { success: false }
+    }
   }
 
   try {

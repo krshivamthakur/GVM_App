@@ -59,11 +59,12 @@ export async function getCourses(category?: string, search?: string): Promise<Co
 }
 
 export async function getTeacherCourses(teacherId?: string): Promise<Course[]> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'admin' && !teacherId) {
+  const currentUser = await getCurrentUser()
+  if (!currentUser) return []
+  if (currentUser.role === 'admin' && !teacherId) {
     return getAllCoursesAdmin()
   }
-  const targetId = teacherId || activeUser.id
+  const targetId = currentUser.role === 'admin' ? (teacherId || currentUser.id) : currentUser.id
 
   try {
     const supabase = createAdminClient()
@@ -252,12 +253,12 @@ export async function getCourseById(
 }
 
 export async function createCourse(data: CourseFormData): Promise<{ success: boolean; course?: Course; error?: string }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
-    return { success: false, error: 'Access denied: Students cannot create courses.' }
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
+    return { success: false, error: 'Access denied: Only teachers and administrators can create courses.' }
   }
   const newCourseId = `00000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`
-  const targetTeacherId = data.teacher_id || activeUser.id
+  const targetTeacherId = currentUser.role === 'admin' && data.teacher_id ? data.teacher_id : currentUser.id
 
   try {
     const supabase = createAdminClient()
@@ -315,9 +316,17 @@ export async function updateCourse(
   courseId: string,
   data: Partial<CourseFormData>
 ): Promise<{ success: boolean; course?: Course; error?: string }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
-    return { success: false, error: 'Access denied: Students cannot update courses.' }
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
+    return { success: false, error: 'Access denied: Only teachers and administrators can update courses.' }
+  }
+
+  // Enforce ownership: Teachers can only update their own courses
+  if (currentUser.role === 'teacher') {
+    const existing = dataStore.getCourseById(courseId)
+    if (existing && existing.teacher_id !== currentUser.id) {
+      return { success: false, error: 'Forbidden: You can only edit your own courses.' }
+    }
   }
 
   try {
@@ -355,9 +364,17 @@ export async function updateCourse(
 }
 
 export async function deleteCourse(courseId: string): Promise<{ success: boolean; error?: string }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
-    return { success: false, error: 'Unauthorized: Student cannot delete courses' }
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
+    return { success: false, error: 'Unauthorized: Only teachers and administrators can delete courses.' }
+  }
+
+  // Enforce ownership: Teachers can only delete their own courses
+  if (currentUser.role === 'teacher') {
+    const existing = dataStore.getCourseById(courseId)
+    if (existing && existing.teacher_id !== currentUser.id) {
+      return { success: false, error: 'Forbidden: You can only delete your own courses.' }
+    }
   }
 
   try {
@@ -377,12 +394,18 @@ export async function deleteCourse(courseId: string): Promise<{ success: boolean
 
 
 export async function toggleCoursePublish(courseId: string): Promise<{ success: boolean; status?: string }> {
-  const activeUser = (await getCurrentUser()) || dataStore.getActiveUser()
-  if (activeUser.role === 'student') {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
     return { success: false }
   }
 
   const course = dataStore.getCourseById(courseId)
+  if (!course) return { success: false }
+
+  if (currentUser.role === 'teacher' && course.teacher_id !== currentUser.id) {
+    return { success: false }
+  }
+
   const newStatus = course?.status === 'published' ? 'draft' : 'published'
 
   try {
@@ -404,12 +427,15 @@ export async function toggleCoursePublish(courseId: string): Promise<{ success: 
 }
 
 export async function enrollCourse(courseId: string, studentId?: string) {
-  const activeUser = dataStore.getActiveUser()
-  const targetStudentId = activeUser.role === 'student' ? activeUser.id : (studentId || activeUser.id)
+  const currentUser = await getCurrentUser()
+  if (!currentUser) {
+    return { success: false, error: 'Please log in to enroll in courses.' }
+  }
+  const targetStudentId = currentUser.role === 'student' ? currentUser.id : (studentId || currentUser.id)
 
   // Students can only enroll in published courses
   const course = dataStore.getCourseById(courseId)
-  if (activeUser.role === 'student' && course && course.status !== 'published') {
+  if (currentUser.role === 'student' && course && course.status !== 'published') {
     return { success: false, error: 'Cannot enroll in an unpublished course.' }
   }
 
@@ -441,8 +467,9 @@ export async function enrollCourse(courseId: string, studentId?: string) {
 }
 
 export async function getStudentEnrolledCourses(studentId?: string): Promise<CourseWithCurriculum[]> {
-  const activeUser = dataStore.getActiveUser()
-  const targetStudentId = activeUser.role === 'student' ? activeUser.id : (studentId || activeUser.id)
+  const currentUser = await getCurrentUser()
+  if (!currentUser) return []
+  const targetStudentId = currentUser.role === 'student' ? currentUser.id : (studentId || currentUser.id)
 
   try {
     const supabase = createAdminClient()

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
+import { getCurrentUser } from '@/actions/auth-actions'
 import { 
   AppNotification, 
   NotificationPreferences, 
@@ -17,7 +18,7 @@ export async function getUserNotifications(options?: {
   type?: string
   limit?: number
 }): Promise<AppNotification[]> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = await getCurrentUser()
   if (!activeUser) return []
 
   try {
@@ -55,14 +56,14 @@ export async function getUserNotifications(options?: {
 }
 
 export async function getUserUnreadCount(): Promise<number> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = await getCurrentUser()
   if (!activeUser) return 0
 
   return dataStore.getUnreadCount(activeUser.id, activeUser.role)
 }
 
 export async function markNotificationAsReadAction(notificationId: string): Promise<boolean> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = await getCurrentUser()
   if (!activeUser) return false
 
   try {
@@ -81,7 +82,7 @@ export async function markNotificationAsReadAction(notificationId: string): Prom
 }
 
 export async function markAllNotificationsAsReadAction(): Promise<boolean> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = await getCurrentUser()
   if (!activeUser) return false
 
   try {
@@ -100,6 +101,9 @@ export async function markAllNotificationsAsReadAction(): Promise<boolean> {
 }
 
 export async function deleteNotificationAction(notificationId: string): Promise<boolean> {
+  const activeUser = await getCurrentUser()
+  if (!activeUser) return false
+
   try {
     const supabase = createAdminClient()
     await supabase.from('notifications').delete().eq('id', notificationId)
@@ -113,7 +117,7 @@ export async function deleteNotificationAction(notificationId: string): Promise<
 }
 
 export async function clearAllNotificationsAction(): Promise<boolean> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = await getCurrentUser()
   if (!activeUser) return false
 
   const success = dataStore.clearAllNotificationsForUser(activeUser.id, activeUser.role)
@@ -131,11 +135,14 @@ export async function createBroadcastNotificationAction(params: {
   link_label?: string
   user_id?: string
 }): Promise<{ success: boolean; notification?: AppNotification; error?: string }> {
+  const activeUser = await getCurrentUser()
+  if (!activeUser || activeUser.role !== 'admin') {
+    return { success: false, error: 'Unauthorized: Only administrators can broadcast notifications.' }
+  }
+
   if (!params.title?.trim() || !params.message?.trim()) {
     return { success: false, error: 'Title and message are required.' }
   }
-
-  const activeUser = dataStore.getActiveUser()
 
   const payload: Omit<AppNotification, 'id' | 'created_at' | 'is_read'> = {
     title: params.title.trim(),
@@ -175,6 +182,17 @@ export async function createBroadcastNotificationAction(params: {
 }
 
 export async function getAdminNotificationStatsAction(): Promise<AdminNotificationStats> {
+  const activeUser = await getCurrentUser()
+  if (!activeUser || activeUser.role !== 'admin') {
+    return {
+      totalSent: 0,
+      totalRead: 0,
+      readRate: 0,
+      activeBroadcasts: 0,
+      studentReach: 0,
+      teacherReach: 0
+    }
+  }
   return dataStore.getAdminNotificationStats()
 }
 
@@ -183,11 +201,19 @@ export async function getAdminNotificationsAction(filter?: {
   type?: string
   audience?: string
 }): Promise<AppNotification[]> {
+  const activeUser = await getCurrentUser()
+  if (!activeUser || activeUser.role !== 'admin') {
+    return []
+  }
   return dataStore.getAllNotificationsAdmin(filter)
 }
 
 export async function getUserNotificationPreferencesAction(): Promise<NotificationPreferences> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = await getCurrentUser()
+  if (!activeUser) {
+    return dataStore.getNotificationPreferences('anonymous')
+  }
+
   try {
     const supabase = createAdminClient()
     const { data, error } = await supabase
@@ -208,7 +234,11 @@ export async function getUserNotificationPreferencesAction(): Promise<Notificati
 export async function updateUserNotificationPreferencesAction(
   updates: Partial<NotificationPreferences>
 ): Promise<NotificationPreferences> {
-  const activeUser = dataStore.getActiveUser()
+  const activeUser = await getCurrentUser()
+  if (!activeUser) {
+    return dataStore.getNotificationPreferences('anonymous')
+  }
+
   try {
     const supabase = createAdminClient()
     await supabase

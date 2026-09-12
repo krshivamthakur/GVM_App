@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
+import { getCurrentUser } from '@/actions/auth-actions'
 import { LectureProgress } from '@/types/database'
 
 export async function updateLectureProgress(
@@ -11,8 +12,11 @@ export async function updateLectureProgress(
   completed?: boolean,
   studentId?: string
 ): Promise<LectureProgress> {
-  const activeUser = dataStore.getActiveUser()
-  const targetStudentId = activeUser.role === 'student' ? activeUser.id : (studentId || activeUser.id)
+  const currentUser = await getCurrentUser()
+  if (!currentUser) {
+    throw new Error('Unauthorized: Please log in to record learning progress.')
+  }
+  const targetStudentId = currentUser.role === 'student' ? currentUser.id : (studentId || currentUser.id)
 
   try {
     const supabase = createAdminClient()
@@ -75,8 +79,11 @@ export async function toggleLectureCompletion(
   courseId: string,
   studentId?: string
 ): Promise<LectureProgress> {
-  const activeUser = dataStore.getActiveUser()
-  const targetStudentId = activeUser.role === 'student' ? activeUser.id : (studentId || activeUser.id)
+  const currentUser = await getCurrentUser()
+  if (!currentUser) {
+    throw new Error('Unauthorized: Please log in to update completion status.')
+  }
+  const targetStudentId = currentUser.role === 'student' ? currentUser.id : (studentId || currentUser.id)
 
   const currentProgress = dataStore.getLectureDetails(lectureId, targetStudentId)?.lecture.progress
   const nextCompleted = currentProgress ? !currentProgress.completed : true
@@ -145,8 +152,9 @@ export async function toggleLectureCompletion(
 }
 
 export async function getRecentLearningActivity(studentId?: string) {
-  const activeUser = dataStore.getActiveUser()
-  const targetStudentId = activeUser.role === 'student' ? activeUser.id : (studentId || activeUser.id)
+  const currentUser = await getCurrentUser()
+  if (!currentUser) return null
+  const targetStudentId = currentUser.role === 'student' ? currentUser.id : (studentId || currentUser.id)
 
   try {
     const supabase = createAdminClient()

@@ -16,7 +16,7 @@ export async function getCurrentUser(): Promise<Profile | null> {
       // 1. Try Supabase
       try {
         const supabase = createAdminClient()
-        let { data: profile, error } = await supabase
+        let { data: profile } = await supabase
           .from('Profile')
           .select('*')
           .eq('id', authUserId)
@@ -46,7 +46,10 @@ export async function getCurrentUser(): Promise<Profile | null> {
         return local
       }
     }
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.digest === 'DYNAMIC_SERVER_USAGE' || err?.digest?.startsWith?.('NEXT_')) {
+      throw err
+    }
     console.warn('getCurrentUser cookie read error:', err)
   }
 
@@ -54,44 +57,43 @@ export async function getCurrentUser(): Promise<Profile | null> {
   return null
 }
 
-export async function switchRole(role: UserRole): Promise<Profile> {
-  const current = await getCurrentUser()
-  return current || dataStore.getActiveUser()
+export async function requireAuth(): Promise<Profile> {
+  const user = await getCurrentUser()
+  if (!user) {
+    throw new Error('Unauthorized: Authentication required.')
+  }
+  return user
 }
 
-export async function switchUser(userId: string): Promise<Profile | null> {
-  const user = dataStore.getProfileById(userId)
-  if (user) {
-    dataStore.setActiveUser(user)
-    try {
-      const cookieStore = await cookies()
-      cookieStore.set('auth_user_id', user.id, {
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7
-      })
-      cookieStore.set('auth_role', user.role, {
-        path: '/',
-        httpOnly: true,
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7
-      })
-    } catch (err) {
-      console.warn('Cookie set error:', err)
-    }
-    revalidatePath('/', 'layout')
-    return user
+export async function requireRole(allowedRoles: UserRole[]): Promise<Profile> {
+  const user = await requireAuth()
+  if (!allowedRoles.includes(user.role)) {
+    throw new Error('Forbidden: Insufficient permissions.')
   }
-  return null
+  return user
+}
+
+export async function switchRole(role: UserRole): Promise<Profile | null> {
+  const current = await getCurrentUser()
+  if (!current) return null
+
+  // Non-admins cannot elevate themselves to admin
+  if (role === 'admin' && current.role !== 'admin') {
+    return current
+  }
+
+  return current
 }
 
 export async function updateProfile(updates: Partial<Profile>): Promise<Profile | null> {
-  const active = await getCurrentUser() || dataStore.getActiveUser()
+  const active = await getCurrentUser()
+  if (!active) {
+    return null
+  }
 
-  // Enforce: Students can only update their own profile details, never escalate their role
+  // Enforce: Non-admins cannot escalate their role or teacher status
   const safeUpdates: Partial<Profile> = { ...updates }
-  if (active.role === 'student') {
+  if (active.role !== 'admin') {
     delete safeUpdates.role
     delete safeUpdates.teacher_status
   }

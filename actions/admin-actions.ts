@@ -5,8 +5,22 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
 import { Profile, UserRole, TeacherStatus } from '@/types/database'
 import { createCometChatUserServer } from '@/lib/cometchat-server'
+import { getCurrentUser } from '@/actions/auth-actions'
 
 export async function getAdminPlatformStats() {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'admin') {
+    return {
+      totalStudents: 0,
+      totalTeachers: 0,
+      pendingTeachers: 0,
+      totalCourses: 0,
+      publishedCourses: 0,
+      totalLectures: 0,
+      totalEnrollments: 0
+    }
+  }
+
   try {
     const supabase = createAdminClient()
     const [
@@ -42,11 +56,19 @@ export async function getAdminPlatformStats() {
 }
 
 export async function getAllUsers(role?: string): Promise<Profile[]> {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'admin' && user.role !== 'teacher')) {
+    return []
+  }
+
+  // Teachers are only permitted to query students
+  const effectiveRole = user.role === 'teacher' ? 'student' : role
+
   try {
     const supabase = createAdminClient()
     let query = supabase.from('Profile').select('*').order('created_at', { ascending: false })
-    if (role && role !== 'all') {
-      query = query.eq('role', role)
+    if (effectiveRole && effectiveRole !== 'all') {
+      query = query.eq('role', effectiveRole)
     }
     const { data, error } = await query
     if (!error && data) {
@@ -58,7 +80,7 @@ export async function getAllUsers(role?: string): Promise<Profile[]> {
 
   return dataStore
     .getAllProfilesAdmin()
-    .filter((p) => (role && role !== 'all' ? p.role === role : true))
+    .filter((p) => (effectiveRole && effectiveRole !== 'all' ? p.role === effectiveRole : true))
 }
 
 export interface CreateUserData {
@@ -72,6 +94,11 @@ export interface CreateUserData {
 }
 
 export async function createUser(data: CreateUserData): Promise<{ success: boolean; user?: Profile; error?: string }> {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || currentUser.role !== 'admin') {
+    return { success: false, error: 'Unauthorized: Admin access required to create accounts.' }
+  }
+
   const newId = `00000000-0000-0000-0000-${Date.now().toString().slice(-12).padStart(12, '0')}`
   const newProfile: Profile = {
     id: newId,
@@ -161,6 +188,11 @@ export async function updateUser(
   id: string,
   updates: Partial<Profile>
 ): Promise<{ success: boolean; user?: Profile; error?: string }> {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || currentUser.role !== 'admin') {
+    return { success: false, error: 'Unauthorized: Admin access required to update user accounts.' }
+  }
+
   const cleanUpdates: any = {}
   for (const [k, v] of Object.entries(updates)) {
     if (v !== undefined) {
@@ -219,6 +251,11 @@ export async function updateUser(
 }
 
 export async function deleteUser(id: string): Promise<{ success: boolean; error?: string }> {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || currentUser.role !== 'admin') {
+    return { success: false, error: 'Unauthorized: Admin access required to delete accounts.' }
+  }
+
   try {
     const supabase = createAdminClient()
     const { error } = await supabase.from('Profile').delete().eq('id', id)
@@ -241,6 +278,11 @@ export async function deleteUser(id: string): Promise<{ success: boolean; error?
 }
 
 export async function approveTeacher(teacherId: string, status: 'approved' | 'rejected') {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || currentUser.role !== 'admin') {
+    return { success: false, error: 'Unauthorized: Admin access required.' }
+  }
+
   try {
     const supabase = createAdminClient()
     await supabase.from('Profile').update({ teacher_status: status }).eq('id', teacherId)
@@ -256,7 +298,13 @@ export async function approveTeacher(teacherId: string, status: 'approved' | 're
 }
 
 export async function getTeacherStudents(teacherId?: string) {
-  const targetId = teacherId || dataStore.getActiveUser().id
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'teacher')) {
+    return []
+  }
+
+  // Teachers can only view enrollments for their own courses
+  const targetId = currentUser.role === 'teacher' ? currentUser.id : (teacherId || currentUser.id)
 
   try {
     const supabase = createAdminClient()

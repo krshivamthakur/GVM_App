@@ -1,12 +1,23 @@
 'use server'
 
 import { createAdminClient } from '@/lib/supabase/server'
+import { getCurrentUser } from '@/actions/auth-actions'
 
 export async function uploadFile(
   formData: FormData,
   bucket: 'course-thumbnails' | 'lecture-videos' | 'lecture-notes'
 ): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return { success: false, error: 'Unauthorized: Please log in to upload files.' }
+    }
+
+    // Restrict course media uploads to teachers and admins
+    if ((bucket === 'course-thumbnails' || bucket === 'lecture-videos') && user.role !== 'teacher' && user.role !== 'admin') {
+      return { success: false, error: 'Unauthorized: Only teachers and administrators can upload course media.' }
+    }
+
     const file = formData.get('file') as File | null
     if (!file) {
       return { success: false, error: 'No file provided' }
