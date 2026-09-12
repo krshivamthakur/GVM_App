@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 import { requireRole } from '@/actions/auth-actions'
+import { getCourses } from '@/actions/course-actions'
 import {
   getFeeFinancialSummary,
   getStudentFeeProfiles,
@@ -21,14 +22,16 @@ export default async function AdminFeesPage() {
     structures,
     categories,
     payments,
-    notifications
+    notifications,
+    courses
   ] = await Promise.all([
     getFeeFinancialSummary(),
     getStudentFeeProfiles(),
     getFeeStructures(),
     getFeeCategories(),
     getFeePayments(),
-    getFeeNotificationLogs()
+    getFeeNotificationLogs(),
+    getCourses()
   ])
 
   return (
@@ -40,6 +43,12 @@ export default async function AdminFeesPage() {
         initialCategories={categories}
         initialPayments={payments}
         initialNotifications={notifications}
+        initialCourses={courses.map(c => ({
+          id: c.id,
+          title: c.title,
+          category: c.category || undefined,
+          price: c.price || undefined
+        }))}
       />
     </div>
   )

@@ -28,372 +28,11 @@ let MOCK_CATEGORIES: FeeCategory[] = [
   { id: 'cat_spr', name: 'Sports & Student Activities', code: 'SPR', description: 'Gym, clubs and tournaments', isRefundable: false },
 ]
 
-let MOCK_DISCOUNTS: FeeDiscount[] = [
-  { id: 'dsc_merit', name: 'Merit Scholarship (Top 10%)', discountType: 'percentage', value: 20, description: '20% off total tuition fee for rank holders', isActive: true },
-  { id: 'dsc_need', name: 'Financial Need Grant', discountType: 'fixed_amount', value: 15000, description: 'Direct waiver of ₹15,000 for verified candidates', isActive: true },
-  { id: 'dsc_sibling', name: 'Sibling Concession', discountType: 'percentage', value: 10, description: '10% discount when siblings are co-enrolled', isActive: true },
-  { id: 'dsc_early', name: 'Early Bird Enrollment', discountType: 'fixed_amount', value: 5000, description: 'Flat ₹5,000 rebate on admissions before July', isActive: true },
-]
-
-let MOCK_STRUCTURES: FeeStructure[] = [
-  {
-    id: 'struct_java_2026',
-    name: 'B.Tech CSE / Java Masterclass 2026',
-    courseId: '11111111-1111-1111-1111-111111111111',
-    courseName: 'Java Programming Complete Masterclass',
-    batchYear: '2026-2027',
-    frequency: 'semester',
-    totalAmount: 65000,
-    dueDate: '2026-09-30',
-    gracePeriodDays: 7,
-    lateFinePerDay: 50,
-    maxLateFine: 2000,
-    isActive: true,
-    createdAt: '2026-06-01',
-    items: [
-      { id: 'fsi_1', categoryId: 'cat_tui', categoryName: 'Tuition Fee', amount: 45000 },
-      { id: 'fsi_2', categoryId: 'cat_lab', categoryName: 'Laboratory & Tech Infrastructure', amount: 10000 },
-      { id: 'fsi_3', categoryId: 'cat_exm', categoryName: 'Examination & Evaluation', amount: 5000 },
-      { id: 'fsi_4', categoryId: 'cat_lib', categoryName: 'Library & Digital Resources', amount: 5000 },
-    ]
-  },
-  {
-    id: 'struct_phy_2026',
-    name: 'Physics Class 12 & JEE Advanced 2026',
-    courseId: '22222222-2222-2222-2222-222222222222',
-    courseName: 'Physics Class 12 & JEE',
-    batchYear: '2026-2027',
-    frequency: 'semester',
-    totalAmount: 48000,
-    dueDate: '2026-09-15',
-    gracePeriodDays: 5,
-    lateFinePerDay: 40,
-    maxLateFine: 1500,
-    isActive: true,
-    createdAt: '2026-06-01',
-    items: [
-      { id: 'fsi_5', categoryId: 'cat_tui', categoryName: 'Tuition Fee', amount: 35000 },
-      { id: 'fsi_6', categoryId: 'cat_lab', categoryName: 'Laboratory & Tech Infrastructure', amount: 8000 },
-      { id: 'fsi_7', categoryId: 'cat_exm', categoryName: 'Examination & Evaluation', amount: 5000 },
-    ]
-  },
-  {
-    id: 'struct_web_2026',
-    name: 'Full Stack Web Development Professional',
-    courseId: '33333333-3333-3333-3333-333333333333',
-    courseName: 'Modern Full Stack Web Development',
-    batchYear: '2026-2027',
-    frequency: 'semester',
-    totalAmount: 55000,
-    dueDate: '2026-10-10',
-    gracePeriodDays: 7,
-    lateFinePerDay: 50,
-    maxLateFine: 2000,
-    isActive: true,
-    createdAt: '2026-06-01',
-    items: [
-      { id: 'fsi_8', categoryId: 'cat_tui', categoryName: 'Tuition Fee', amount: 40000 },
-      { id: 'fsi_9', categoryId: 'cat_lab', categoryName: 'Laboratory & Tech Infrastructure', amount: 10000 },
-      { id: 'fsi_10', categoryId: 'cat_exm', categoryName: 'Examination & Evaluation', amount: 5000 },
-    ]
-  }
-]
-
-let MOCK_STUDENT_PROFILES: StudentFeeProfile[] = [
-  {
-    id: 'sfp_001',
-    studentId: 'stu_001',
-    studentName: 'Arjun Mehta',
-    studentAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&auto=format&fit=crop',
-    rollNumber: 'CSE2024001',
-    email: 'arjun.mehta@example.com',
-    courseId: '11111111-1111-1111-1111-111111111111',
-    courseName: 'Java Programming Complete Masterclass',
-    className: 'Java Programming Masterclass',
-    structureId: 'struct_java_2026',
-    structureName: 'B.Tech CSE / Java Masterclass 2026',
-    discountId: 'dsc_merit',
-    discountName: 'Merit Scholarship (Top 10%)',
-    discountAmount: 13000, // 20% of 65000
-    customAdjustment: 0,
-    netFee: 52000,
-    paidFee: 52000,
-    dueFee: 0,
-    lateFineAccrued: 0,
-    status: 'paid',
-    lastPaymentDate: '2026-08-15',
-    installments: [
-      { id: 'inst_001_1', studentId: 'stu_001', installmentNumber: 1, title: 'Installment 1 (50%)', amount: 26000, dueDate: '2026-07-31', paidAmount: 26000, lateFine: 0, status: 'paid', paidAt: '2026-07-28' },
-      { id: 'inst_001_2', studentId: 'stu_001', installmentNumber: 2, title: 'Installment 2 (50%)', amount: 26000, dueDate: '2026-09-30', paidAmount: 26000, lateFine: 0, status: 'paid', paidAt: '2026-08-15' },
-    ]
-  },
-  {
-    id: 'sfp_002',
-    studentId: 'stu_002',
-    studentName: 'Priya Sharma',
-    studentAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop',
-    rollNumber: 'CSE2024002',
-    email: 'priya.sharma@example.com',
-    courseId: '11111111-1111-1111-1111-111111111111',
-    courseName: 'Java Programming Complete Masterclass',
-    className: 'Java Programming Masterclass',
-    structureId: 'struct_java_2026',
-    structureName: 'B.Tech CSE / Java Masterclass 2026',
-    discountAmount: 0,
-    customAdjustment: 0,
-    netFee: 65000,
-    paidFee: 35000,
-    dueFee: 30000,
-    lateFineAccrued: 0,
-    status: 'partial',
-    lastPaymentDate: '2026-08-01',
-    installments: [
-      { id: 'inst_002_1', studentId: 'stu_002', installmentNumber: 1, title: 'Installment 1 (Term 1)', amount: 35000, dueDate: '2026-07-31', paidAmount: 35000, lateFine: 0, status: 'paid', paidAt: '2026-08-01' },
-      { id: 'inst_002_2', studentId: 'stu_002', installmentNumber: 2, title: 'Installment 2 (Term 2)', amount: 30000, dueDate: '2026-09-30', paidAmount: 0, lateFine: 0, status: 'unpaid' },
-    ]
-  },
-  {
-    id: 'sfp_003',
-    studentId: 'stu_003',
-    studentName: 'Rohan Verma',
-    studentAvatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop',
-    rollNumber: 'CSE2024003',
-    email: 'rohan.verma@example.com',
-    courseId: '11111111-1111-1111-1111-111111111111',
-    courseName: 'Java Programming Complete Masterclass',
-    className: 'Java Programming Masterclass',
-    structureId: 'struct_java_2026',
-    structureName: 'B.Tech CSE / Java Masterclass 2026',
-    discountAmount: 0,
-    customAdjustment: 0,
-    netFee: 65000,
-    paidFee: 0,
-    dueFee: 65000,
-    lateFineAccrued: 450,
-    status: 'overdue',
-    installments: [
-      { id: 'inst_003_1', studentId: 'stu_003', installmentNumber: 1, title: 'Installment 1 (Term 1)', amount: 32500, dueDate: '2026-08-31', paidAmount: 0, lateFine: 450, status: 'overdue' },
-      { id: 'inst_003_2', studentId: 'stu_003', installmentNumber: 2, title: 'Installment 2 (Term 2)', amount: 32500, dueDate: '2026-10-31', paidAmount: 0, lateFine: 0, status: 'unpaid' },
-    ]
-  },
-  {
-    id: 'sfp_004',
-    studentId: 'stu_004',
-    studentName: 'Sneha Patel',
-    studentAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&auto=format&fit=crop',
-    rollNumber: 'CSE2024004',
-    email: 'sneha.patel@example.com',
-    courseId: '11111111-1111-1111-1111-111111111111',
-    courseName: 'Java Programming Complete Masterclass',
-    className: 'Java Programming Masterclass',
-    structureId: 'struct_java_2026',
-    structureName: 'B.Tech CSE / Java Masterclass 2026',
-    discountId: 'dsc_need',
-    discountName: 'Financial Need Grant',
-    discountAmount: 15000,
-    customAdjustment: 0,
-    netFee: 50000,
-    paidFee: 25000,
-    dueFee: 25000,
-    lateFineAccrued: 0,
-    status: 'partial',
-    lastPaymentDate: '2026-08-10',
-    installments: [
-      { id: 'inst_004_1', studentId: 'stu_004', installmentNumber: 1, title: 'Installment 1', amount: 25000, dueDate: '2026-08-15', paidAmount: 25000, lateFine: 0, status: 'paid', paidAt: '2026-08-10' },
-      { id: 'inst_004_2', studentId: 'stu_004', installmentNumber: 2, title: 'Installment 2', amount: 25000, dueDate: '2026-10-15', paidAmount: 0, lateFine: 0, status: 'unpaid' },
-    ]
-  },
-  {
-    id: 'sfp_007',
-    studentId: 'stu_007',
-    studentName: 'Kavya Nair',
-    studentAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5c4?w=80&auto=format&fit=crop',
-    rollNumber: 'SCI2024001',
-    email: 'kavya.nair@example.com',
-    courseId: '22222222-2222-2222-2222-222222222222',
-    courseName: 'Physics Class 12 & JEE',
-    className: 'Physics — Electromagnetism & Optics',
-    structureId: 'struct_phy_2026',
-    structureName: 'Physics Class 12 & JEE Advanced 2026',
-    discountAmount: 0,
-    customAdjustment: 0,
-    netFee: 48000,
-    paidFee: 48000,
-    dueFee: 0,
-    lateFineAccrued: 0,
-    status: 'paid',
-    lastPaymentDate: '2026-08-20',
-    installments: [
-      { id: 'inst_007_1', studentId: 'stu_007', installmentNumber: 1, title: 'Term 1 Fee', amount: 24000, dueDate: '2026-08-01', paidAmount: 24000, lateFine: 0, status: 'paid', paidAt: '2026-07-29' },
-      { id: 'inst_007_2', studentId: 'stu_007', installmentNumber: 2, title: 'Term 2 Fee', amount: 24000, dueDate: '2026-09-15', paidAmount: 24000, lateFine: 0, status: 'paid', paidAt: '2026-08-20' },
-    ]
-  },
-  {
-    id: 'sfp_008',
-    studentId: 'stu_008',
-    studentName: 'Aditya Kumar',
-    studentAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&auto=format&fit=crop',
-    rollNumber: 'SCI2024002',
-    email: 'aditya.kumar@example.com',
-    courseId: '22222222-2222-2222-2222-222222222222',
-    courseName: 'Physics Class 12 & JEE',
-    className: 'Physics — Electromagnetism & Optics',
-    structureId: 'struct_phy_2026',
-    structureName: 'Physics Class 12 & JEE Advanced 2026',
-    discountAmount: 0,
-    customAdjustment: 0,
-    netFee: 48000,
-    paidFee: 0,
-    dueFee: 48000,
-    lateFineAccrued: 600,
-    status: 'overdue',
-    installments: [
-      { id: 'inst_008_1', studentId: 'stu_008', installmentNumber: 1, title: 'Term 1 Fee', amount: 24000, dueDate: '2026-08-15', paidAmount: 0, lateFine: 600, status: 'overdue' },
-      { id: 'inst_008_2', studentId: 'stu_008', installmentNumber: 2, title: 'Term 2 Fee', amount: 24000, dueDate: '2026-10-15', paidAmount: 0, lateFine: 0, status: 'unpaid' },
-    ]
-  }
-]
-
-let MOCK_PAYMENTS: FeePayment[] = [
-  {
-    id: 'pay_001',
-    receiptNumber: 'REC-2026-01041',
-    studentId: 'stu_001',
-    studentName: 'Arjun Mehta',
-    rollNumber: 'CSE2024001',
-    courseName: 'Java Programming Complete Masterclass',
-    installmentId: 'inst_001_1',
-    installmentTitle: 'Installment 1 (50%)',
-    amountPaid: 26000,
-    paymentMode: 'upi',
-    transactionRef: 'UPI-REF-9923841120',
-    paymentDate: '2026-07-28 11:30:00',
-    receivedBy: 'Admin Accounts',
-    notes: 'Paid via GPay',
-    status: 'verified'
-  },
-  {
-    id: 'pay_002',
-    receiptNumber: 'REC-2026-01290',
-    studentId: 'stu_001',
-    studentName: 'Arjun Mehta',
-    rollNumber: 'CSE2024001',
-    courseName: 'Java Programming Complete Masterclass',
-    installmentId: 'inst_001_2',
-    installmentTitle: 'Installment 2 (50%)',
-    amountPaid: 26000,
-    paymentMode: 'bank_transfer',
-    transactionRef: 'NEFT-HDFC-9938101',
-    paymentDate: '2026-08-15 14:20:00',
-    receivedBy: 'Admin Accounts',
-    notes: 'HDFC NetBanking Direct Credit',
-    status: 'verified'
-  },
-  {
-    id: 'pay_003',
-    receiptNumber: 'REC-2026-01188',
-    studentId: 'stu_002',
-    studentName: 'Priya Sharma',
-    rollNumber: 'CSE2024002',
-    courseName: 'Java Programming Complete Masterclass',
-    installmentId: 'inst_002_1',
-    installmentTitle: 'Installment 1 (Term 1)',
-    amountPaid: 35000,
-    paymentMode: 'card',
-    transactionRef: 'POS-TXN-77319022',
-    paymentDate: '2026-08-01 10:15:00',
-    receivedBy: 'Cashier Counter 2',
-    notes: 'Debit card POS swipe',
-    status: 'verified'
-  },
-  {
-    id: 'pay_004',
-    receiptNumber: 'REC-2026-01244',
-    studentId: 'stu_004',
-    studentName: 'Sneha Patel',
-    rollNumber: 'CSE2024004',
-    courseName: 'Java Programming Complete Masterclass',
-    installmentId: 'inst_004_1',
-    installmentTitle: 'Installment 1',
-    amountPaid: 25000,
-    paymentMode: 'cash',
-    transactionRef: 'CASH-RCPT-0041',
-    paymentDate: '2026-08-10 16:45:00',
-    receivedBy: 'Accounts Bursar',
-    notes: 'Offline cash collection verified',
-    status: 'verified'
-  },
-  {
-    id: 'pay_005',
-    receiptNumber: 'REC-2026-01302',
-    studentId: 'stu_007',
-    studentName: 'Kavya Nair',
-    rollNumber: 'SCI2024001',
-    courseName: 'Physics Class 12 & JEE',
-    installmentId: 'inst_007_1',
-    installmentTitle: 'Term 1 Fee',
-    amountPaid: 24000,
-    paymentMode: 'upi',
-    transactionRef: 'UPI-REF-339102837',
-    paymentDate: '2026-07-29 09:10:00',
-    receivedBy: 'Admin Accounts',
-    notes: 'PhonePe QR code',
-    status: 'verified'
-  },
-  {
-    id: 'pay_006',
-    receiptNumber: 'REC-2026-01355',
-    studentId: 'stu_007',
-    studentName: 'Kavya Nair',
-    rollNumber: 'SCI2024001',
-    courseName: 'Physics Class 12 & JEE',
-    installmentId: 'inst_007_2',
-    installmentTitle: 'Term 2 Fee',
-    amountPaid: 24000,
-    paymentMode: 'bank_transfer',
-    transactionRef: 'IMPS-ICICI-001928',
-    paymentDate: '2026-08-20 12:00:00',
-    receivedBy: 'Admin Accounts',
-    notes: 'IMPS bank transfer',
-    status: 'verified'
-  }
-]
-
-let MOCK_NOTIFICATIONS: FeeNotificationLog[] = [
-  {
-    id: 'notif_1',
-    studentId: 'stu_003',
-    studentName: 'Rohan Verma',
-    email: 'rohan.verma@example.com',
-    type: 'overdue_alert',
-    amountDue: 32950,
-    dueDate: '2026-08-31',
-    channel: 'email',
-    sentAt: '2026-09-02 10:00:00'
-  },
-  {
-    id: 'notif_2',
-    studentId: 'stu_008',
-    studentName: 'Aditya Kumar',
-    email: 'aditya.kumar@example.com',
-    type: 'overdue_alert',
-    amountDue: 24600,
-    dueDate: '2026-08-15',
-    channel: 'sms',
-    sentAt: '2026-09-01 11:30:00'
-  },
-  {
-    id: 'notif_3',
-    studentId: 'stu_002',
-    studentName: 'Priya Sharma',
-    email: 'priya.sharma@example.com',
-    type: 'due_reminder',
-    amountDue: 30000,
-    dueDate: '2026-09-30',
-    channel: 'in_app',
-    sentAt: '2026-09-10 09:00:00'
-  }
-]
+let MOCK_DISCOUNTS: FeeDiscount[] = []
+let MOCK_STRUCTURES: FeeStructure[] = []
+let MOCK_STUDENT_PROFILES: StudentFeeProfile[] = []
+let MOCK_PAYMENTS: FeePayment[] = []
+let MOCK_NOTIFICATIONS: FeeNotificationLog[] = []
 
 // ============================================================
 // SERVER ACTIONS
@@ -480,6 +119,15 @@ export async function getStudentFeeProfiles(filters?: {
 export async function getStudentFeeProfile(studentId: string): Promise<StudentFeeProfile | null> {
   const profile = MOCK_STUDENT_PROFILES.find(p => p.studentId === studentId)
   return profile ? { ...profile } : null
+}
+
+export async function createStudentFeeProfile(profile: Omit<StudentFeeProfile, 'id'>): Promise<StudentFeeProfile> {
+  const newProfile: StudentFeeProfile = {
+    ...profile,
+    id: `sfp_${Date.now()}`
+  }
+  MOCK_STUDENT_PROFILES.push(newProfile)
+  return newProfile
 }
 
 export async function recordFeePayment(params: {
@@ -677,12 +325,22 @@ export async function getFeeFinancialSummary(): Promise<FeeFinancialSummary> {
     recoveryRate: val.demanded > 0 ? Math.round((val.collected / val.demanded) * 100) : 0
   }))
 
-  const monthlyCollection = [
-    { month: 'Jun 2026', collected: 25000, due: 60000 },
-    { month: 'Jul 2026', collected: 50000, due: 55000 },
-    { month: 'Aug 2026', collected: 111000, due: 95000 },
-    { month: 'Sep 2026', collected: totalCollected - 186000 > 0 ? totalCollected - 186000 : 35000, due: totalDues }
-  ]
+  // Monthly collection aggregated dynamically from verified payments
+  const monthMap = new Map<string, { collected: number; due: number }>()
+  for (const pay of MOCK_PAYMENTS) {
+    if (pay.status === 'verified' && pay.paymentDate) {
+      const monthKey = new Date(pay.paymentDate.replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+      const current = monthMap.get(monthKey) || { collected: 0, due: 0 }
+      current.collected += pay.amountPaid
+      monthMap.set(monthKey, current)
+    }
+  }
+
+  const monthlyCollection = Array.from(monthMap.entries()).map(([month, val]) => ({
+    month,
+    collected: val.collected,
+    due: val.due
+  }))
 
   return {
     totalStudentsBilled: totalStudents,

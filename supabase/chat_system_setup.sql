@@ -1,5 +1,5 @@
 -- ====================================================================
--- GVM EDULMS — COMPLETE CHAT MANAGEMENT SYSTEM SETUP SCRIPT
+-- GVM EDULMS — PRODUCTION CHAT SYSTEM & STRICT 2-PERSON PRIVACY RLS
 -- Paste and run this script in your Supabase SQL Editor:
 -- Supabase Dashboard -> SQL Editor -> New Query -> Run
 -- ====================================================================
@@ -22,13 +22,6 @@ CREATE TABLE IF NOT EXISTS public.chat_conversations (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE public.chat_conversations ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow read chat_conversations" ON public.chat_conversations;
-DROP POLICY IF EXISTS "Allow write chat_conversations" ON public.chat_conversations;
-CREATE POLICY "Allow read chat_conversations" ON public.chat_conversations FOR SELECT USING (true);
-CREATE POLICY "Allow write chat_conversations" ON public.chat_conversations FOR ALL USING (true);
-
-
 -- 2. CHAT CONVERSATION PARTICIPANTS TABLE
 CREATE TABLE IF NOT EXISTS public.chat_participants (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
@@ -43,13 +36,6 @@ CREATE TABLE IF NOT EXISTS public.chat_participants (
     joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(conversation_id, user_id)
 );
-
-ALTER TABLE public.chat_participants ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow read chat_participants" ON public.chat_participants;
-DROP POLICY IF EXISTS "Allow write chat_participants" ON public.chat_participants;
-CREATE POLICY "Allow read chat_participants" ON public.chat_participants FOR SELECT USING (true);
-CREATE POLICY "Allow write chat_participants" ON public.chat_participants FOR ALL USING (true);
-
 
 -- 3. CHAT MESSAGES TABLE
 CREATE TABLE IF NOT EXISTS public.chat_messages (
@@ -78,13 +64,6 @@ CREATE TABLE IF NOT EXISTS public.chat_messages (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow read chat_messages" ON public.chat_messages;
-DROP POLICY IF EXISTS "Allow write chat_messages" ON public.chat_messages;
-CREATE POLICY "Allow read chat_messages" ON public.chat_messages FOR SELECT USING (true);
-CREATE POLICY "Allow write chat_messages" ON public.chat_messages FOR ALL USING (true);
-
-
 -- 4. CHAT MESSAGE REACTIONS TABLE
 CREATE TABLE IF NOT EXISTS public.chat_reactions (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
@@ -95,13 +74,6 @@ CREATE TABLE IF NOT EXISTS public.chat_reactions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(message_id, user_id, emoji)
 );
-
-ALTER TABLE public.chat_reactions ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow read chat_reactions" ON public.chat_reactions;
-DROP POLICY IF EXISTS "Allow write chat_reactions" ON public.chat_reactions;
-CREATE POLICY "Allow read chat_reactions" ON public.chat_reactions FOR SELECT USING (true);
-CREATE POLICY "Allow write chat_reactions" ON public.chat_reactions FOR ALL USING (true);
-
 
 -- 5. CHAT MODERATION & REPORTS TABLE
 CREATE TABLE IF NOT EXISTS public.chat_reports (
@@ -117,13 +89,6 @@ CREATE TABLE IF NOT EXISTS public.chat_reports (
     reviewed_at TIMESTAMPTZ
 );
 
-ALTER TABLE public.chat_reports ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow read chat_reports" ON public.chat_reports;
-DROP POLICY IF EXISTS "Allow write chat_reports" ON public.chat_reports;
-CREATE POLICY "Allow read chat_reports" ON public.chat_reports FOR SELECT USING (true);
-CREATE POLICY "Allow write chat_reports" ON public.chat_reports FOR ALL USING (true);
-
-
 -- 6. USER BLOCKS TABLE
 CREATE TABLE IF NOT EXISTS public.chat_blocks (
     id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
@@ -133,22 +98,176 @@ CREATE TABLE IF NOT EXISTS public.chat_blocks (
     UNIQUE(blocker_id, blocked_user_id)
 );
 
+-- ====================================================================
+-- 7. STRICT ROW LEVEL SECURITY (RLS) FOR 2-PERSON DIRECT PRIVACY
+-- ====================================================================
+
+-- Enable RLS on all tables
+ALTER TABLE public.chat_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_blocks ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow read chat_blocks" ON public.chat_blocks;
-DROP POLICY IF EXISTS "Allow write chat_blocks" ON public.chat_blocks;
-CREATE POLICY "Allow read chat_blocks" ON public.chat_blocks FOR SELECT USING (true);
-CREATE POLICY "Allow write chat_blocks" ON public.chat_blocks FOR ALL USING (true);
 
+-- Reset existing policies
+DROP POLICY IF EXISTS "Direct chats visible only to participants" ON public.chat_conversations;
+DROP POLICY IF EXISTS "Allow conversation insert" ON public.chat_conversations;
+DROP POLICY IF EXISTS "Allow conversation update" ON public.chat_conversations;
 
--- 7. PERFORMANCE INDEXES
+DROP POLICY IF EXISTS "Participants visible to conversation members" ON public.chat_participants;
+DROP POLICY IF EXISTS "Allow participant management" ON public.chat_participants;
+
+DROP POLICY IF EXISTS "Direct chat messages private read" ON public.chat_messages;
+DROP POLICY IF EXISTS "Direct chat messages private insert" ON public.chat_messages;
+DROP POLICY IF EXISTS "Allow message update by sender" ON public.chat_messages;
+DROP POLICY IF EXISTS "Allow message delete by sender" ON public.chat_messages;
+
+-- --- CHAT CONVERSATIONS RLS ---
+-- Public channels & cohort groups can be seen by authenticated users.
+-- Direct 1-on-1 chats are STRICTLY visible only if current user is one of the 2 participants!
+CREATE POLICY "Direct chats visible only to participants" ON public.chat_conversations
+FOR SELECT USING (
+    type IN ('channel', 'group', 'support')
+    OR (
+        type = 'direct' AND (
+            created_by = auth.uid()::text
+            OR id LIKE '%' || auth.uid()::text || '%'
+            OR EXISTS (
+                SELECT 1 FROM public.chat_participants cp
+                WHERE cp.conversation_id = chat_conversations.id
+                  AND cp.user_id = auth.uid()::text
+            )
+        )
+    )
+);
+
+CREATE POLICY "Allow conversation insert" ON public.chat_conversations
+FOR INSERT WITH CHECK (
+    auth.role() = 'authenticated' OR auth.role() = 'service_role'
+);
+
+CREATE POLICY "Allow conversation update" ON public.chat_conversations
+FOR UPDATE USING (
+    created_by = auth.uid()::text
+    OR id LIKE '%' || auth.uid()::text || '%'
+    OR EXISTS (
+        SELECT 1 FROM public.chat_participants cp
+        WHERE cp.conversation_id = chat_conversations.id
+          AND cp.user_id = auth.uid()::text
+    )
+    OR auth.role() = 'service_role'
+);
+
+-- --- CHAT PARTICIPANTS RLS ---
+CREATE POLICY "Participants visible to conversation members" ON public.chat_participants
+FOR SELECT USING (
+    conversation_id NOT LIKE 'direct_%'
+    OR user_id = auth.uid()::text
+    OR conversation_id LIKE '%' || auth.uid()::text || '%'
+    OR auth.role() = 'service_role'
+);
+
+CREATE POLICY "Allow participant management" ON public.chat_participants
+FOR ALL USING (
+    user_id = auth.uid()::text
+    OR conversation_id LIKE '%' || auth.uid()::text || '%'
+    OR auth.role() = 'service_role'
+);
+
+-- --- CHAT MESSAGES RLS ---
+-- Privacy Rule: 1-on-1 chats (direct_*) are ONLY readable by the 2 participants.
+-- Third parties (even teachers or admins not part of the chat) cannot read the messages!
+CREATE POLICY "Direct chat messages private read" ON public.chat_messages
+FOR SELECT USING (
+    -- 1. Non-direct chats (groups/channels) are visible to members/public
+    NOT (conversation_id LIKE 'direct_%')
+    OR
+    -- 2. Current user is the sender
+    sender_id = auth.uid()::text
+    OR
+    -- 3. Conversation ID encodes user ID (e.g. direct_userA__userB)
+    conversation_id LIKE '%' || auth.uid()::text || '%'
+    OR
+    -- 4. Current user is registered as a participant in this conversation
+    EXISTS (
+        SELECT 1 FROM public.chat_participants cp
+        WHERE cp.conversation_id = chat_messages.conversation_id
+          AND cp.user_id = auth.uid()::text
+    )
+    OR
+    auth.role() = 'service_role'
+);
+
+-- Privacy Rule: A user can only insert messages into direct chats they are part of!
+CREATE POLICY "Direct chat messages private insert" ON public.chat_messages
+FOR INSERT WITH CHECK (
+    sender_id = auth.uid()::text
+    AND (
+        NOT (conversation_id LIKE 'direct_%')
+        OR conversation_id LIKE '%' || auth.uid()::text || '%'
+        OR EXISTS (
+            SELECT 1 FROM public.chat_participants cp
+            WHERE cp.conversation_id = chat_messages.conversation_id
+              AND cp.user_id = auth.uid()::text
+        )
+    )
+    OR auth.role() = 'service_role'
+);
+
+CREATE POLICY "Allow message update by sender" ON public.chat_messages
+FOR UPDATE USING (
+    sender_id = auth.uid()::text OR auth.role() = 'service_role'
+);
+
+CREATE POLICY "Allow message delete by sender" ON public.chat_messages
+FOR DELETE USING (
+    sender_id = auth.uid()::text OR auth.role() = 'service_role'
+);
+
+-- --- REACTIONS RLS ---
+CREATE POLICY "Allow read chat_reactions" ON public.chat_reactions
+FOR SELECT USING (true);
+
+CREATE POLICY "Allow write chat_reactions" ON public.chat_reactions
+FOR ALL USING (
+    user_id = auth.uid()::text OR auth.role() = 'service_role'
+);
+
+-- --- REPORTS & BLOCKS RLS ---
+CREATE POLICY "Allow read chat_reports" ON public.chat_reports
+FOR SELECT USING (
+    reported_by = auth.uid()::text OR auth.role() = 'service_role'
+);
+
+CREATE POLICY "Allow write chat_reports" ON public.chat_reports
+FOR INSERT WITH CHECK (
+    reported_by = auth.uid()::text OR auth.role() = 'service_role'
+);
+
+CREATE POLICY "Allow read chat_blocks" ON public.chat_blocks
+FOR SELECT USING (
+    blocker_id = auth.uid()::text OR auth.role() = 'service_role'
+);
+
+CREATE POLICY "Allow write chat_blocks" ON public.chat_blocks
+FOR ALL USING (
+    blocker_id = auth.uid()::text OR auth.role() = 'service_role'
+);
+
+-- ====================================================================
+-- 8. PERFORMANCE INDEXES
+-- ====================================================================
 CREATE INDEX IF NOT EXISTS idx_chat_messages_conv_created ON public.chat_messages(conversation_id, created_at ASC);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON public.chat_messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_chat_participants_user ON public.chat_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_participants_conv ON public.chat_participants(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_chat_reactions_msg ON public.chat_reactions(message_id);
 CREATE INDEX IF NOT EXISTS idx_chat_reports_status ON public.chat_reports(status);
 
-
--- 8. INITIAL DEFAULT SYSTEM CHANNELS SEED
+-- ====================================================================
+-- 9. INITIAL DEFAULT SYSTEM CHANNELS SEED
+-- ====================================================================
 INSERT INTO public.chat_conversations (id, title, type, avatar, is_locked, is_pinned, pinned_notice, last_message)
 VALUES 
   (
@@ -195,9 +314,9 @@ ON CONFLICT (id) DO UPDATE SET
   title = EXCLUDED.title,
   pinned_notice = EXCLUDED.pinned_notice;
 
-
--- 9. SUPABASE REALTIME REPLICATION ENABLEMENT
--- (Allows real-time streaming of messages & reactions)
+-- ====================================================================
+-- 10. SUPABASE REALTIME REPLICATION ENABLEMENT
+-- ====================================================================
 DO $$
 BEGIN
   BEGIN

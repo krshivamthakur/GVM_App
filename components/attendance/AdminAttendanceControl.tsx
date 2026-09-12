@@ -247,7 +247,13 @@ export function AdminAttendanceControl({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {allSummaries.map(s => (
+                  {allSummaries.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-muted-foreground text-xs">
+                        No student attendance records found.
+                      </td>
+                    </tr>
+                  ) : allSummaries.map(s => (
                     <tr key={s.studentId} className="hover:bg-muted/20">
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
@@ -322,7 +328,13 @@ export function AdminAttendanceControl({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {filteredSessions.slice(0, 50).map(session => (
+                  {filteredSessions.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-12 text-muted-foreground text-xs">
+                        No attendance sessions found.
+                      </td>
+                    </tr>
+                  ) : filteredSessions.slice(0, 50).map(session => (
                     <tr key={session.id} className="hover:bg-muted/20">
                       <td className="px-4 py-3 font-medium">{session.date}</td>
                       <td className="px-4 py-3 text-muted-foreground max-w-28 truncate">{session.className}</td>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import {
   StudentFeeProfile,
   FeeStructure,
@@ -49,6 +49,7 @@ interface AdminFeeDashboardProps {
   initialCategories: FeeCategory[]
   initialPayments: FeePayment[]
   initialNotifications: FeeNotificationLog[]
+  initialCourses?: Array<{ id: string; title: string; category?: string; price?: number }>
 }
 
 export function AdminFeeDashboard({
@@ -57,13 +58,16 @@ export function AdminFeeDashboard({
   initialStructures,
   initialCategories,
   initialPayments,
-  initialNotifications
+  initialNotifications,
+  initialCourses
 }: AdminFeeDashboardProps) {
   const [summary, setSummary] = useState<FeeFinancialSummary>(initialSummary)
   const [profiles, setProfiles] = useState<StudentFeeProfile[]>(initialProfiles)
   const [structures, setStructures] = useState<FeeStructure[]>(initialStructures)
+  const [categories, setCategories] = useState<FeeCategory[]>(initialCategories)
   const [payments, setPayments] = useState<FeePayment[]>(initialPayments)
   const [notifications, setNotifications] = useState<FeeNotificationLog[]>(initialNotifications)
+
 
   // Tab State
   const [activeTab, setActiveTab] = useState<'profiles' | 'structures' | 'defaulters' | 'transactions' | 'reports'>('profiles')
@@ -109,6 +113,24 @@ export function AdminFeeDashboard({
 
   // Defaulters list (< 100% and past due)
   const defaulters = profiles.filter(p => p.status === 'overdue' || (p.dueFee > 0 && p.lateFineAccrued > 0))
+
+  // Dynamically derive courses from profiles and structures
+  const courseMap = new Map<string, string>()
+  profiles.forEach(p => courseMap.set(p.courseId, p.courseName))
+  structures.forEach(s => courseMap.set(s.courseId, s.courseName))
+  const availableCourses = Array.from(courseMap.entries())
+  const courseOptionsForModal = useMemo(() => {
+    const list: Array<{ id: string; title: string; category?: string; price?: number }> = []
+    if (initialCourses) {
+      initialCourses.forEach(c => list.push({ id: c.id, title: c.title, category: c.category, price: c.price }))
+    }
+    availableCourses.forEach(([id, title]) => {
+      if (!list.some(c => c.id === id || c.title.toLowerCase() === title.toLowerCase())) {
+        list.push({ id, title })
+      }
+    })
+    return list
+  }, [availableCourses, initialCourses])
 
   // Handlers
   const handleOpenCollect = (profile: StudentFeeProfile) => {
@@ -407,8 +429,9 @@ export function AdminFeeDashboard({
                 className="px-3 py-2 text-xs bg-background border border-border rounded-xl focus:outline-none"
               >
                 <option value="all">All Courses</option>
-                <option value="11111111-1111-1111-1111-111111111111">Java Programming Masterclass</option>
-                <option value="22222222-2222-2222-2222-222222222222">Physics Class 12 & JEE</option>
+                {availableCourses.map(([cid, cname]) => (
+                  <option key={cid} value={cid}>{cname}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -429,7 +452,13 @@ export function AdminFeeDashboard({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredProfiles.map(p => {
+                  {filteredProfiles.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-muted-foreground text-xs">
+                        No student fee profiles found.
+                      </td>
+                    </tr>
+                  ) : filteredProfiles.map(p => {
                     const isFullyPaid = p.status === 'paid'
                     return (
                       <tr key={p.id} className="hover:bg-muted/20 transition-colors">
@@ -555,7 +584,13 @@ export function AdminFeeDashboard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {defaulters.map(d => {
+                {defaulters.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="text-center py-12 text-muted-foreground text-xs">
+                      No overdue fee defaulters at this time.
+                    </td>
+                  </tr>
+                ) : defaulters.map(d => {
                   const overdueInst = d.installments.find(i => i.status === 'overdue')
                   const totalPayable = d.dueFee + d.lateFineAccrued
                   return (
@@ -630,7 +665,13 @@ export function AdminFeeDashboard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {payments.map(pay => (
+                {payments.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-12 text-muted-foreground text-xs">
+                      No payment transactions recorded yet.
+                    </td>
+                  </tr>
+                ) : payments.map(pay => (
                   <tr key={pay.id} className="hover:bg-muted/20 transition-colors">
                     <td className="py-3 px-4 font-mono font-bold text-foreground">
                       {pay.receiptNumber}
@@ -695,8 +736,14 @@ export function AdminFeeDashboard({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {structures.map(str => (
+          {structures.length === 0 ? (
+            <div className="py-12 text-center rounded-2xl border border-dashed border-border bg-card">
+              <p className="text-sm font-semibold text-foreground">No fee structures configured yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Click "New Fee Structure" above to create one.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {structures.map(str => (
               <div key={str.id} className="p-5 rounded-2xl bg-card border border-border shadow-xs flex flex-col justify-between space-y-4">
                 <div>
                   <div className="flex items-start justify-between gap-2">
@@ -742,7 +789,8 @@ export function AdminFeeDashboard({
                 </div>
               </div>
             ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -811,7 +859,13 @@ export function AdminFeeDashboard({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {summary.courseCollection.map(cc => (
+                {summary.courseCollection.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-8 text-muted-foreground text-xs">
+                      No course fee data available yet.
+                    </td>
+                  </tr>
+                ) : summary.courseCollection.map(cc => (
                   <tr key={cc.courseId} className="hover:bg-muted/20">
                     <td className="py-3 px-4 font-semibold text-foreground">{cc.courseName}</td>
                     <td className="py-3 px-4 text-muted-foreground">{cc.enrolledCount}</td>
@@ -854,8 +908,10 @@ export function AdminFeeDashboard({
       <FeeStructureModal
         isOpen={isStructureModalOpen}
         onClose={() => setIsStructureModalOpen(false)}
-        categories={initialCategories}
+        categories={categories}
         editingStructure={editingStructure}
+        courses={courseOptionsForModal}
+        onCategoriesUpdated={setCategories}
         onSuccess={saved => {
           if (editingStructure) {
             setStructures(structures.map(s => (s.id === saved.id ? saved : s)))

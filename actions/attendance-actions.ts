@@ -18,202 +18,10 @@ import {
 // IN-MEMORY STORE (Supabase-ready stubs)
 // ============================================================
 
-const MOCK_CLASSES: AttendanceClass[] = [
-  {
-    id: 'cls_java',
-    name: 'Java Programming Masterclass',
-    courseId: '11111111-1111-1111-1111-111111111111',
-    courseName: 'Java Programming Complete Masterclass',
-    teacherId: '00000000-0000-0000-0000-000000000002',
-    teacherName: 'Prof. Ramesh Sharma',
-    subjects: [
-      { id: 'sub_java_core', name: 'Core Java', code: 'JAVA101', classId: 'cls_java' },
-      { id: 'sub_java_oop', name: 'OOP & Design Patterns', code: 'JAVA102', classId: 'cls_java' },
-      { id: 'sub_java_adv', name: 'Advanced Java & JVM', code: 'JAVA103', classId: 'cls_java' },
-    ],
-    students: [
-      { id: 'stu_001', name: 'Arjun Mehta', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&auto=format&fit=crop', rollNumber: 'CSE2024001', enrolledAt: '2026-06-01' },
-      { id: 'stu_002', name: 'Priya Sharma', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop', rollNumber: 'CSE2024002', enrolledAt: '2026-06-01' },
-      { id: 'stu_003', name: 'Rohan Verma', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop', rollNumber: 'CSE2024003', enrolledAt: '2026-06-01' },
-      { id: 'stu_004', name: 'Sneha Patel', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&auto=format&fit=crop', rollNumber: 'CSE2024004', enrolledAt: '2026-06-02' },
-      { id: 'stu_005', name: 'Vikram Singh', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=80&auto=format&fit=crop', rollNumber: 'CSE2024005', enrolledAt: '2026-06-02' },
-      { id: 'stu_006', name: 'Anjali Rao', avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=80&auto=format&fit=crop', rollNumber: 'CSE2024006', enrolledAt: '2026-06-03' },
-    ],
-  },
-  {
-    id: 'cls_physics',
-    name: 'Physics — Electromagnetism & Optics',
-    courseId: '22222222-2222-2222-2222-222222222222',
-    courseName: 'Physics Class 12 & JEE',
-    teacherId: '00000000-0000-0000-0000-000000000003',
-    teacherName: 'Dr. Emily Watson',
-    subjects: [
-      { id: 'sub_phy_em', name: 'Electromagnetism', code: 'PHY201', classId: 'cls_physics' },
-      { id: 'sub_phy_optics', name: 'Wave Optics', code: 'PHY202', classId: 'cls_physics' },
-      { id: 'sub_phy_modern', name: 'Modern Physics', code: 'PHY203', classId: 'cls_physics' },
-    ],
-    students: [
-      { id: 'stu_007', name: 'Kavya Nair', avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5c4?w=80&auto=format&fit=crop', rollNumber: 'SCI2024001', enrolledAt: '2026-06-01' },
-      { id: 'stu_008', name: 'Aditya Kumar', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&auto=format&fit=crop', rollNumber: 'SCI2024002', enrolledAt: '2026-06-01' },
-      { id: 'stu_009', name: 'Meera Joshi', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&auto=format&fit=crop', rollNumber: 'SCI2024003', enrolledAt: '2026-06-02' },
-      { id: 'stu_010', name: 'Rahul Das', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&auto=format&fit=crop', rollNumber: 'SCI2024004', enrolledAt: '2026-06-02' },
-    ],
-  },
-  {
-    id: 'cls_chem',
-    name: 'Organic Chemistry — NEET Preparation',
-    courseId: '33333333-3333-3333-3333-333333333333',
-    courseName: 'Organic Chemistry: Reactions & Mechanisms',
-    teacherId: '00000000-0000-0000-0000-000000000002',
-    teacherName: 'Prof. Ramesh Sharma',
-    subjects: [
-      { id: 'sub_chem_orgo', name: 'Reaction Mechanisms', code: 'CHEM301', classId: 'cls_chem' },
-      { id: 'sub_chem_hydro', name: 'Hydrocarbons', code: 'CHEM302', classId: 'cls_chem' },
-      { id: 'sub_chem_bio', name: 'Biomolecules', code: 'CHEM303', classId: 'cls_chem' },
-    ],
-    students: [
-      { id: 'stu_011', name: 'Ishaan Chopra', avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=80&auto=format&fit=crop', rollNumber: 'MED2024001', enrolledAt: '2026-06-01' },
-      { id: 'stu_012', name: 'Pooja Reddy', avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5c4?w=80&auto=format&fit=crop', rollNumber: 'MED2024002', enrolledAt: '2026-06-01' },
-      { id: 'stu_013', name: 'Akash Gupta', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&auto=format&fit=crop', rollNumber: 'MED2024003', enrolledAt: '2026-06-02' },
-    ],
-  },
-]
-
-// Seed attendance records for the past 30 days
-function generateSeedRecords(): AttendanceRecord[] {
-  const records: AttendanceRecord[] = []
-  const statuses: AttendanceStatus[] = ['present', 'present', 'present', 'present', 'absent', 'late', 'present', 'present', 'present', 'leave']
-  let idCounter = 1
-
-  for (const cls of MOCK_CLASSES) {
-    for (const subject of cls.subjects) {
-      // Generate for last 25 weekdays
-      let classDay = 0
-      for (let daysBack = 1; daysBack <= 60 && classDay < 25; daysBack++) {
-        const d = new Date()
-        d.setDate(d.getDate() - daysBack)
-        const dow = d.getDay()
-        if (dow === 0 || dow === 6) continue // skip weekends
-        classDay++
-        const dateStr = d.toISOString().slice(0, 10)
-
-        for (const student of cls.students) {
-          const status = statuses[(idCounter + parseInt(student.id.replace('stu_', ''))) % statuses.length]
-          const sessionId = `sess_${cls.id}_${subject.id}_${dateStr}`
-          records.push({
-            id: `rec_${idCounter++}`,
-            sessionId,
-            studentId: student.id,
-            studentName: student.name,
-            studentAvatar: student.avatar,
-            classId: cls.id,
-            subjectId: subject.id,
-            subjectName: subject.name,
-            date: dateStr,
-            status,
-            markedBy: cls.teacherId,
-            markedAt: new Date(d.getTime() + 3600000).toISOString(),
-          })
-        }
-      }
-    }
-  }
-  return records
-}
-
-function generateSeedSessions(): AttendanceSession[] {
-  const sessions: AttendanceSession[] = []
-  for (const cls of MOCK_CLASSES) {
-    for (const subject of cls.subjects) {
-      let classDay = 0
-      for (let daysBack = 1; daysBack <= 60 && classDay < 25; daysBack++) {
-        const d = new Date()
-        d.setDate(d.getDate() - daysBack)
-        const dow = d.getDay()
-        if (dow === 0 || dow === 6) continue
-        classDay++
-        const dateStr = d.toISOString().slice(0, 10)
-        const sessionId = `sess_${cls.id}_${subject.id}_${dateStr}`
-
-        const recs = attendanceRecords.filter(r => r.sessionId === sessionId)
-        const presentCount = recs.filter(r => r.status === 'present').length
-        const absentCount = recs.filter(r => r.status === 'absent').length
-        const lateCount = recs.filter(r => r.status === 'late').length
-        const leaveCount = recs.filter(r => r.status === 'leave').length
-
-        sessions.push({
-          id: sessionId,
-          classId: cls.id,
-          className: cls.name,
-          subjectId: subject.id,
-          subjectName: subject.name,
-          date: dateStr,
-          teacherId: cls.teacherId,
-          teacherName: cls.teacherName,
-          lockStatus: daysBack > 3 ? 'locked' : 'open',
-          submittedAt: new Date(d.getTime() + 3600000).toISOString(),
-          totalStudents: cls.students.length,
-          presentCount,
-          absentCount,
-          lateCount,
-          leaveCount,
-        })
-      }
-    }
-  }
-  return sessions
-}
-
-const attendanceRecords: AttendanceRecord[] = generateSeedRecords()
-const attendanceSessions: AttendanceSession[] = generateSeedSessions()
-
-const leaveRequests: LeaveRequest[] = [
-  {
-    id: 'leave_001',
-    studentId: 'stu_001',
-    studentName: 'Arjun Mehta',
-    studentAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&auto=format&fit=crop',
-    classId: 'cls_java',
-    className: 'Java Programming Masterclass',
-    fromDate: new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10),
-    toDate: new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10),
-    reason: 'Medical appointment — follow-up checkup for fever',
-    status: 'pending',
-    submittedAt: new Date(Date.now() - 3 * 86400000).toISOString(),
-  },
-  {
-    id: 'leave_002',
-    studentId: 'stu_004',
-    studentName: 'Sneha Patel',
-    studentAvatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&auto=format&fit=crop',
-    classId: 'cls_java',
-    className: 'Java Programming Masterclass',
-    fromDate: new Date(Date.now() + 1 * 86400000).toISOString().slice(0, 10),
-    toDate: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10),
-    reason: 'Family wedding ceremony — travelling out of state',
-    status: 'approved',
-    submittedAt: new Date(Date.now() - 5 * 86400000).toISOString(),
-    reviewedBy: '00000000-0000-0000-0000-000000000002',
-    reviewedAt: new Date(Date.now() - 4 * 86400000).toISOString(),
-    reviewNote: 'Approved. Please submit notes for missed sessions.',
-  },
-  {
-    id: 'leave_003',
-    studentId: 'stu_007',
-    studentName: 'Kavya Nair',
-    studentAvatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5c4?w=80&auto=format&fit=crop',
-    classId: 'cls_physics',
-    className: 'Physics — Electromagnetism & Optics',
-    fromDate: new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10),
-    toDate: new Date(Date.now() - 1 * 86400000).toISOString().slice(0, 10),
-    reason: 'Severe migraine — unable to attend',
-    status: 'rejected',
-    submittedAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-    reviewedBy: '00000000-0000-0000-0000-000000000003',
-    reviewedAt: new Date(Date.now() - 1 * 86400000).toISOString(),
-    reviewNote: 'Please provide medical certificate. Resubmit with documentation.',
-  },
-]
+const MOCK_CLASSES: AttendanceClass[] = []
+const attendanceRecords: AttendanceRecord[] = []
+const attendanceSessions: AttendanceSession[] = []
+const leaveRequests: LeaveRequest[] = []
 
 let attendanceRule: AttendanceRule = {
   id: 'rule_global',
@@ -240,6 +48,30 @@ export async function getAllClasses(): Promise<AttendanceClass[]> {
 
 export async function getClassesByTeacher(teacherId: string): Promise<AttendanceClass[]> {
   return MOCK_CLASSES.filter(c => c.teacherId === teacherId)
+}
+
+export async function createClass(classData: Omit<AttendanceClass, 'id'>): Promise<AttendanceClass> {
+  const newClass: AttendanceClass = {
+    ...classData,
+    id: `cls_${Date.now()}`
+  }
+  MOCK_CLASSES.push(newClass)
+  return newClass
+}
+
+export async function addClassStudent(
+  classId: string,
+  student: { id: string; name: string; avatar?: string; rollNumber?: string }
+): Promise<boolean> {
+  const cls = MOCK_CLASSES.find(c => c.id === classId)
+  if (!cls) return false
+  if (!cls.students.some(s => s.id === student.id)) {
+    cls.students.push({
+      ...student,
+      enrolledAt: new Date().toISOString().slice(0, 10)
+    })
+  }
+  return true
 }
 
 export async function getAttendanceSessions(classId?: string, teacherId?: string): Promise<AttendanceSession[]> {
@@ -393,15 +225,20 @@ export async function getStudentAttendanceSummary(
     classes = classes.filter(c => c.id === classId)
   }
 
-  for (const cls of MOCK_CLASSES) {
+  for (const cls of classes) {
     const stu = cls.students.find(s => s.id === studentId)
     if (stu) { studentName = stu.name; studentAvatar = stu.avatar; break }
   }
 
-  if (!studentName) return null
-
   const records = attendanceRecords.filter(r => r.studentId === studentId)
   if (records.length === 0) return null
+
+  if (!studentName && records.length > 0) {
+    studentName = records[0].studentName
+    studentAvatar = records[0].studentAvatar
+  }
+
+  if (!studentName) return null
 
   const totalClasses = records.length
   const presentCount = records.filter(r => r.status === 'present').length

@@ -10,12 +10,12 @@ import {
 } from '@/types/chat'
 import { Profile } from '@/types/database'
 
-const CHAT_STORAGE_VERSION = 'gvm_unified_chat_v4'
-const BLOCKED_USERS_STORAGE_KEY = 'gvm_chat_blocked_users_v4'
-const MUTED_USERS_STORAGE_KEY = 'gvm_chat_muted_users_v4'
-const USER_STRIKES_STORAGE_KEY = 'gvm_chat_user_strikes_v4'
-const REPORTS_STORAGE_KEY = 'gvm_chat_reports_v4'
-const DELETED_CONVERSATIONS_KEY = 'gvm_chat_deleted_conversations_v4'
+const CHAT_STORAGE_VERSION = 'gvm_unified_chat_v5'
+const BLOCKED_USERS_STORAGE_KEY = 'gvm_chat_blocked_users_v5'
+const MUTED_USERS_STORAGE_KEY = 'gvm_chat_muted_users_v5'
+const USER_STRIKES_STORAGE_KEY = 'gvm_chat_user_strikes_v5'
+const REPORTS_STORAGE_KEY = 'gvm_chat_reports_v5'
+const DELETED_CONVERSATIONS_KEY = 'gvm_chat_deleted_conversations_v5'
 
 export const SYSTEM_CHANNELS: ChatConversation[] = [
   {
@@ -224,43 +224,84 @@ export class ChatStateManager {
       }
 
       // 1. Check current storage or migrate from previous storage
-      let rawStored = localStorage.getItem(CHAT_STORAGE_VERSION)
-      if (!rawStored) {
-        rawStored = localStorage.getItem('gvm_unified_chat_v3')
+      const storageSources = [
+        CHAT_STORAGE_VERSION,
+        'gvm_unified_chat_v4',
+        'gvm_unified_chat_v3'
+      ]
+
+      for (const sourceKey of storageSources) {
+        const rawStored = localStorage.getItem(sourceKey)
+        if (!rawStored) continue
+
+        try {
+          const parsed = JSON.parse(rawStored)
+          if (parsed.conversations) {
+            parsed.conversations.forEach((c: ChatConversation) => {
+              if (!this.deletedConversationIds.has(c.id) && !this.conversations.has(c.id)) {
+                this.conversations.set(c.id, c)
+              }
+            })
+          }
+          if (parsed.messages) {
+            Object.keys(parsed.messages).forEach((convId) => {
+              if (this.deletedConversationIds.has(convId)) return
+              const rawMsgs = parsed.messages[convId] || []
+              if (rawMsgs.length === 0) return
+
+              // Strictly remove simulated bot/auto-reply messages
+              const cleanMsgs = rawMsgs.filter((m: ChatMessage) => {
+                if (!m || !m.id || !m.text) return false
+                if (
+                  m.text.includes('Thanks for reaching out! I am reviewing your query') ||
+                  m.text.includes('Let me verify the lecture notes and share the derivation') ||
+                  m.text.includes('Got it! Let me verify')
+                ) {
+                  return false
+                }
+                return true
+              })
+
+              const currentList = this.messages.get(convId) || []
+              if (cleanMsgs.length > 0) {
+                const merged = deduplicateMessagesList([...currentList, ...cleanMsgs])
+                this.messages.set(convId, merged)
+              }
+            })
+          }
+        } catch (err) {
+          console.warn('Storage parsing error for', sourceKey, err)
+        }
       }
 
-      if (rawStored) {
-        const parsed = JSON.parse(rawStored)
-        if (parsed.conversations) {
-          parsed.conversations.forEach((c: ChatConversation) => {
-            if (!this.deletedConversationIds.has(c.id)) {
-              this.conversations.set(c.id, c)
-            }
-          })
+      // If a conversation has a last_message snippet (e.g. "hello test 5") but messages is currently empty, recover it!
+      this.conversations.forEach((conv, convId) => {
+        const existingMsgs = this.messages.get(convId) || []
+        if (
+          existingMsgs.length === 0 &&
+          conv.last_message &&
+          !conv.last_message.startsWith('Start conversation with') &&
+          conv.last_message !== 'Attachment' &&
+          conv.last_message !== 'Conversation established'
+        ) {
+          const recovered: ChatMessage = {
+            id: `msg_rec_${convId}_1`,
+            conversation_id: convId,
+            sender_id: conv.other_user_id || 'peer',
+            sender_name: conv.title || 'Participant',
+            sender_role: conv.other_user_role || 'member',
+            text: conv.last_message,
+            type: 'text',
+            status: 'delivered',
+            created_at: new Date().toISOString()
+          }
+          this.messages.set(convId, [recovered])
         }
-        if (parsed.messages) {
-          Object.keys(parsed.messages).forEach((convId) => {
-            if (this.deletedConversationIds.has(convId)) return
-            // Strictly remove any simulated bot/auto-reply messages
-            const cleanMsgs = (parsed.messages[convId] || []).filter((m: ChatMessage) => {
-              if (m.text && (
-                m.text.includes('Thanks for reaching out! I am reviewing your query') ||
-                m.text.includes('Let me verify the lecture notes and share the derivation') ||
-                m.text.includes('Got it! Let me verify')
-              )) {
-                return false
-              }
-              return true
-            })
-            this.messages.set(convId, deduplicateMessagesList(cleanMsgs))
-          })
-        }
-      }
+      })
 
       // Purge legacy storage keys
       localStorage.removeItem('gvm_unified_chat_v1')
       localStorage.removeItem('gvm_unified_chat_v2')
-      localStorage.removeItem('gvm_unified_chat_v3')
 
       const rawBlocked = localStorage.getItem(BLOCKED_USERS_STORAGE_KEY)
       if (rawBlocked) {
@@ -377,7 +418,13 @@ export class ChatStateManager {
       }
     })
 
-    // 2. Clean up self conversations and merge/purge any duplicate conversations
+    // 2. Clean up self conversations and conversations not involving the current user
+    const currentIdentifiers = [
+      currentUserId?.toLowerCase(),
+      currentUserEmail?.toLowerCase(),
+      currentUserEmail ? currentUserEmail.split('@')[0].toLowerCase() : undefined
+    ].filter(Boolean) as string[]
+
     Array.from(this.conversations.keys()).forEach((key) => {
       const conv = this.conversations.get(key)
       if (conv && conv.type === 'direct') {
@@ -394,47 +441,16 @@ export class ChatStateManager {
           return
         }
 
-        // Match against canonical
-        const checkKeys = [
-          conv.other_user_id?.toLowerCase(),
-          conv.other_user_name?.toLowerCase(),
-          conv.title?.toLowerCase(),
-          key.toLowerCase()
-        ].filter(Boolean) as string[]
-
-        let canonicalId: string | undefined
-        for (const k of checkKeys) {
-          if (canonicalByPerson.has(k)) {
-            canonicalId = canonicalByPerson.get(k)
-            break
+        // Privacy: Verify this direct conversation involves the logged-in user
+        if (currentIdentifiers.length > 0) {
+          const parts = key.replace('direct_', '').toLowerCase().split('__').map(p => p.trim())
+          const involvesCurrentUser = parts.some(p =>
+            currentIdentifiers.some(cid => p === cid || p.includes(cid) || cid.includes(p))
+          )
+          if (!involvesCurrentUser) {
+            this.conversations.delete(key)
+            return
           }
-          for (const [pKey, cId] of canonicalByPerson.entries()) {
-            if (k.includes(pKey) && pKey.length >= 3) {
-              canonicalId = cId
-              break
-            }
-          }
-          if (canonicalId) break
-        }
-
-        if (canonicalId && key !== canonicalId) {
-          // Merge messages from duplicate into canonicalId
-          const dupMsgs = this.messages.get(key) || []
-          if (dupMsgs.length > 0) {
-            const currentCanonicalMsgs = this.messages.get(canonicalId) || []
-            const merged = new Map<string, ChatMessage>()
-            ;[...currentCanonicalMsgs, ...dupMsgs].forEach((m) => {
-              if (
-                !m.text.includes('Thanks for reaching out!') &&
-                !m.text.includes('verify the lecture notes')
-              ) {
-                merged.set(m.id, { ...m, conversation_id: canonicalId })
-              }
-            })
-            this.messages.set(canonicalId, Array.from(merged.values()))
-          }
-          this.conversations.delete(key)
-          this.messages.delete(key)
         }
       }
     })
@@ -509,56 +525,8 @@ export class ChatStateManager {
   }
 
   public getMessages(conversationId: string): ChatMessage[] {
-    let list = this.messages.get(conversationId) || []
-
-    // If direct chat currently has 0 messages, check if any alias key holds messages for this conversation
-    if (conversationId.startsWith('direct_') && list.length === 0) {
-      const conv = this.conversations.get(conversationId)
-      const otherId = conv?.other_user_id
-      const otherName = conv?.title?.toLowerCase()
-      const otherEmail = conv?.other_user_name?.toLowerCase()
-
-      const mergedMap = new Map<string, ChatMessage>()
-
-      this.messages.forEach((msgs, key) => {
-        if (!key.startsWith('direct_') || key === conversationId) return
-
-        const isMatch =
-          (otherId && key.includes(otherId)) ||
-          (otherName && key.toLowerCase().includes(otherName)) ||
-          (otherEmail && key.toLowerCase().includes(otherEmail))
-
-        if (isMatch && msgs.length > 0) {
-          msgs.forEach((m) => {
-            if (
-              !m.text.includes('Thanks for reaching out!') &&
-              !m.text.includes('verify the lecture notes')
-            ) {
-              mergedMap.set(m.id, { ...m, conversation_id: conversationId })
-            }
-          })
-        }
-      })
-
-      if (mergedMap.size > 0) {
-        list = deduplicateMessagesList(Array.from(mergedMap.values()))
-        this.messages.set(conversationId, list)
-
-        if (conv && list.length > 0) {
-          const lastMsg = list[list.length - 1]
-          conv.last_message = lastMsg.text || 'Attachment'
-          conv.last_message_time = 'Just now'
-        }
-        this.saveToStorage()
-      }
-    }
-
-    const dedupedList = deduplicateMessagesList(list)
-    if (dedupedList.length !== list.length) {
-      this.messages.set(conversationId, dedupedList)
-      this.saveToStorage()
-    }
-    return dedupedList
+    const list = this.messages.get(conversationId) || []
+    return deduplicateMessagesList(list)
   }
 
   public addMessage(msg: ChatMessage): ChatMessage {

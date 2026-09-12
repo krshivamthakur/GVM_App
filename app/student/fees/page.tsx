@@ -14,8 +14,7 @@ export default async function StudentFeesPage() {
   if (!user) redirect('/login')
   if (user.role === 'admin') redirect('/admin/fees')
 
-  // In demo environment, use 'stu_002' (Priya Sharma - has pending installment) or 'stu_001'
-  const studentId = 'stu_002'
+  const studentId = user.id
 
   const [profile, payments] = await Promise.all([
     getStudentFeeProfile(studentId),

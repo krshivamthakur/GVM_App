@@ -65,13 +65,304 @@ import {
   Play,
   Pause,
   Maximize2,
-  RotateCcw,
   Settings,
   Sliders,
-  AlertTriangle
+  AlertTriangle,
+  Database,
+  Code2
 } from 'lucide-react'
 
-const QUICK_EMOJIS = ['👍', '❤️', '🔥', '👏', '💡', '😂', '🎉', '🚀']
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '👏']
+
+const CHAT_SQL_RLS = `-- ====================================================================
+-- STRICT ROW LEVEL SECURITY (RLS) POLICIES FOR 2-PERSON DIRECT PRIVACY
+-- ====================================================================
+
+-- Enable RLS on conversations and messages
+ALTER TABLE public.chat_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_participants ENABLE ROW LEVEL SECURITY;
+
+-- 1. DIRECT CONVERSATIONS VISIBILITY
+-- Group/Public channels visible to authenticated users.
+-- Direct 1-on-1 chats are STRICTLY visible ONLY to the 2 participants!
+DROP POLICY IF EXISTS "Direct chats visible only to participants" ON public.chat_conversations;
+CREATE POLICY "Direct chats visible only to participants" ON public.chat_conversations
+FOR SELECT USING (
+    type IN ('channel', 'group', 'support')
+    OR (
+        type = 'direct' AND (
+            created_by = auth.uid()::text
+            OR id LIKE '%' || auth.uid()::text || '%'
+            OR EXISTS (
+                SELECT 1 FROM public.chat_participants cp
+                WHERE cp.conversation_id = chat_conversations.id
+                  AND cp.user_id = auth.uid()::text
+            )
+        )
+    )
+);
+
+-- 2. DIRECT MESSAGES READ PRIVACY
+-- Non-direct messages are readable by members.
+-- Direct chat messages are STRICTLY readable ONLY by the two participants!
+DROP POLICY IF EXISTS "Direct chat messages private read" ON public.chat_messages;
+CREATE POLICY "Direct chat messages private read" ON public.chat_messages
+FOR SELECT USING (
+    NOT (conversation_id LIKE 'direct_%')
+    OR sender_id = auth.uid()::text
+    OR conversation_id LIKE '%' || auth.uid()::text || '%'
+    OR EXISTS (
+        SELECT 1 FROM public.chat_participants cp
+        WHERE cp.conversation_id = chat_messages.conversation_id
+          AND cp.user_id = auth.uid()::text
+    )
+    OR auth.role() = 'service_role'
+);
+
+-- 3. DIRECT MESSAGES INSERT RESTRICTION
+-- Users can only send messages as themselves and into authorized chats.
+DROP POLICY IF EXISTS "Direct chat messages private insert" ON public.chat_messages;
+CREATE POLICY "Direct chat messages private insert" ON public.chat_messages
+FOR INSERT WITH CHECK (
+    sender_id = auth.uid()::text
+    AND (
+        NOT (conversation_id LIKE 'direct_%')
+        OR conversation_id LIKE '%' || auth.uid()::text || '%'
+        OR EXISTS (
+            SELECT 1 FROM public.chat_participants cp
+            WHERE cp.conversation_id = chat_messages.conversation_id
+              AND cp.user_id = auth.uid()::text
+        )
+    )
+    OR auth.role() = 'service_role'
+);`
+
+const CHAT_SQL_TABLES = `-- ====================================================================
+-- CHAT SYSTEM CORE TABLES SCHEMA
+-- ====================================================================
+
+-- 1. CONVERSATIONS
+CREATE TABLE IF NOT EXISTS public.chat_conversations (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+    title TEXT,
+    type TEXT NOT NULL DEFAULT 'direct', -- 'direct' | 'group' | 'channel' | 'support'
+    avatar TEXT,
+    created_by TEXT,
+    is_archived BOOLEAN NOT NULL DEFAULT false,
+    is_pinned BOOLEAN NOT NULL DEFAULT false,
+    is_locked BOOLEAN NOT NULL DEFAULT false,
+    pinned_notice TEXT,
+    last_message TEXT,
+    last_message_time TEXT,
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 2. PARTICIPANTS
+CREATE TABLE IF NOT EXISTS public.chat_participants (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+    conversation_id TEXT NOT NULL REFERENCES public.chat_conversations(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    user_name TEXT,
+    user_role TEXT DEFAULT 'student',
+    user_avatar TEXT,
+    role TEXT NOT NULL DEFAULT 'member',
+    is_muted BOOLEAN NOT NULL DEFAULT false,
+    last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(conversation_id, user_id)
+);
+
+-- 3. MESSAGES (With reply quotes, reactions, audio voice notes & status ticks)
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+    conversation_id TEXT NOT NULL REFERENCES public.chat_conversations(id) ON DELETE CASCADE,
+    sender_id TEXT NOT NULL,
+    sender_name TEXT NOT NULL,
+    sender_role TEXT DEFAULT 'student',
+    sender_avatar TEXT,
+    text TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT 'text', -- 'text' | 'image' | 'file' | 'audio' | 'video' | 'system'
+    media_url TEXT,
+    media_name TEXT,
+    media_size TEXT,
+    duration_seconds INTEGER,
+    reply_to_id TEXT,
+    reply_to_text TEXT,
+    reply_to_sender TEXT,
+    is_edited BOOLEAN NOT NULL DEFAULT false,
+    is_pinned BOOLEAN NOT NULL DEFAULT false,
+    status TEXT NOT NULL DEFAULT 'delivered', -- 'sent' | 'delivered' | 'read'
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 4. MESSAGE REACTIONS
+CREATE TABLE IF NOT EXISTS public.chat_reactions (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+    message_id TEXT NOT NULL REFERENCES public.chat_messages(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    user_name TEXT,
+    emoji TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(message_id, user_id, emoji)
+);`
+
+const CHAT_SQL_ALL = `-- ====================================================================
+-- GVM EDULMS — COMPLETE PRODUCTION CHAT SYSTEM SETUP SCRIPT
+-- Run in: Supabase Dashboard -> SQL Editor -> New Query -> Run
+-- ====================================================================
+
+-- 1. CORE TABLES
+CREATE TABLE IF NOT EXISTS public.chat_conversations (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+    title TEXT,
+    type TEXT NOT NULL DEFAULT 'direct',
+    avatar TEXT,
+    created_by TEXT,
+    is_archived BOOLEAN NOT NULL DEFAULT false,
+    is_pinned BOOLEAN NOT NULL DEFAULT false,
+    is_locked BOOLEAN NOT NULL DEFAULT false,
+    pinned_notice TEXT,
+    last_message TEXT,
+    last_message_time TEXT,
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.chat_participants (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+    conversation_id TEXT NOT NULL REFERENCES public.chat_conversations(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    user_name TEXT,
+    user_role TEXT DEFAULT 'student',
+    user_avatar TEXT,
+    role TEXT NOT NULL DEFAULT 'member',
+    is_muted BOOLEAN NOT NULL DEFAULT false,
+    last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(conversation_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS public.chat_messages (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+    conversation_id TEXT NOT NULL REFERENCES public.chat_conversations(id) ON DELETE CASCADE,
+    sender_id TEXT NOT NULL,
+    sender_name TEXT NOT NULL,
+    sender_role TEXT DEFAULT 'student',
+    sender_avatar TEXT,
+    text TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT 'text',
+    media_url TEXT,
+    media_name TEXT,
+    media_size TEXT,
+    duration_seconds INTEGER,
+    reply_to_id TEXT,
+    reply_to_text TEXT,
+    reply_to_sender TEXT,
+    is_edited BOOLEAN NOT NULL DEFAULT false,
+    is_pinned BOOLEAN NOT NULL DEFAULT false,
+    status TEXT NOT NULL DEFAULT 'delivered',
+    metadata JSONB DEFAULT '{}'::JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.chat_reactions (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::TEXT,
+    message_id TEXT NOT NULL REFERENCES public.chat_messages(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL,
+    user_name TEXT,
+    emoji TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(message_id, user_id, emoji)
+);
+
+-- 2. STRICT 2-PERSON PRIVACY ROW LEVEL SECURITY (RLS)
+ALTER TABLE public.chat_conversations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chat_reactions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Direct chats visible only to participants" ON public.chat_conversations;
+CREATE POLICY "Direct chats visible only to participants" ON public.chat_conversations
+FOR SELECT USING (
+    type IN ('channel', 'group', 'support')
+    OR (
+        type = 'direct' AND (
+            created_by = auth.uid()::text
+            OR id LIKE '%' || auth.uid()::text || '%'
+            OR EXISTS (
+                SELECT 1 FROM public.chat_participants cp
+                WHERE cp.conversation_id = chat_conversations.id
+                  AND cp.user_id = auth.uid()::text
+            )
+        )
+    )
+);
+
+DROP POLICY IF EXISTS "Allow conversation insert" ON public.chat_conversations;
+CREATE POLICY "Allow conversation insert" ON public.chat_conversations
+FOR INSERT WITH CHECK (auth.role() = 'authenticated' OR auth.role() = 'service_role');
+
+DROP POLICY IF EXISTS "Direct chat messages private read" ON public.chat_messages;
+CREATE POLICY "Direct chat messages private read" ON public.chat_messages
+FOR SELECT USING (
+    NOT (conversation_id LIKE 'direct_%')
+    OR sender_id = auth.uid()::text
+    OR conversation_id LIKE '%' || auth.uid()::text || '%'
+    OR EXISTS (
+        SELECT 1 FROM public.chat_participants cp
+        WHERE cp.conversation_id = chat_messages.conversation_id
+          AND cp.user_id = auth.uid()::text
+    )
+    OR auth.role() = 'service_role'
+);
+
+DROP POLICY IF EXISTS "Direct chat messages private insert" ON public.chat_messages;
+CREATE POLICY "Direct chat messages private insert" ON public.chat_messages
+FOR INSERT WITH CHECK (
+    sender_id = auth.uid()::text
+    AND (
+        NOT (conversation_id LIKE 'direct_%')
+        OR conversation_id LIKE '%' || auth.uid()::text || '%'
+        OR EXISTS (
+            SELECT 1 FROM public.chat_participants cp
+            WHERE cp.conversation_id = chat_messages.conversation_id
+              AND cp.user_id = auth.uid()::text
+        )
+    )
+    OR auth.role() = 'service_role'
+);
+
+-- 3. PERFORMANCE INDEXES
+CREATE INDEX IF NOT EXISTS idx_chat_messages_conv_created ON public.chat_messages(conversation_id, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON public.chat_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_chat_participants_user ON public.chat_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_chat_reactions_msg ON public.chat_reactions(message_id);
+
+-- 4. REALTIME REPLICATION ENABLEMENT
+DO $$
+BEGIN
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_conversations;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_reactions;
+  EXCEPTION WHEN OTHERS THEN NULL;
+  END;
+END $$;`
 
 interface UnifiedChatEngineProps {
   portalRole: 'student' | 'teacher' | 'admin'
@@ -134,6 +425,12 @@ export function UnifiedChatEngine({
   const [newGroupTitle, setNewGroupTitle] = useState('')
   const [newGroupNotice, setNewGroupNotice] = useState('')
   const [newGroupIsLocked, setNewGroupIsLocked] = useState(false)
+
+  // WhatsApp-style features & SQL schema modal state
+  const [showSqlModal, setShowSqlModal] = useState(false)
+  const [copiedSql, setCopiedSql] = useState(false)
+  const [activeSqlTab, setActiveSqlTab] = useState<'all' | 'rls' | 'tables'>('all')
+  const [showInChatSearch, setShowInChatSearch] = useState(false)
 
   // Call Simulation State
   const [callState, setCallState] = useState<ActiveCallState | null>(null)
@@ -328,6 +625,7 @@ export function UnifiedChatEngine({
         deduped.push(m)
       }
     })
+
     return deduped
   }, [messages, messageSearch])
 
@@ -985,6 +1283,20 @@ export function UnifiedChatEngine({
 
                 {/* Right Call & Header Action Toolbar */}
                 <div className="flex items-center gap-1 sm:gap-1.5">
+
+                  {/* Search in Conversation */}
+                  <button
+                    onClick={() => setShowInChatSearch(!showInChatSearch)}
+                    title="Search Messages in Conversation"
+                    className={`p-2 rounded-xl border transition-colors ${
+                      showInChatSearch || messageSearch
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border hover:bg-muted text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+
                   {/* Manage Group Button (Admins & Teachers) */}
                   {(portalRole === 'admin' || portalRole === 'teacher') && currentConversation.type !== 'direct' && (
                     <button
@@ -1036,22 +1348,7 @@ export function UnifiedChatEngine({
                     <FileDown className="w-4 h-4" />
                   </button>
 
-                  {/* Restore Default Discussions */}
-                  <button
-                    onClick={() => {
-                      if (confirm('Restore sample discussions and cohort messages?')) {
-                        chatStore.resetToDefaultDiscussions()
-                        setConversations([...chatStore.getConversations()])
-                        if (activeConvId) {
-                          setMessages([...chatStore.getMessages(activeConvId)])
-                        }
-                      }
-                    }}
-                    title="Restore Sample Discussions"
-                    className="p-2 rounded-xl border border-border hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
-                  >
-                    <RotateCcw className="w-4 h-4" />
-                  </button>
+
 
                   {/* Clear Chat */}
                   <button
@@ -1069,6 +1366,38 @@ export function UnifiedChatEngine({
                 </div>
               </div>
 
+              {/* In-Chat Search Bar */}
+              {showInChatSearch && (
+                <div className="px-4 py-2 bg-muted/40 border-b border-border flex items-center gap-2 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <input
+                    type="text"
+                    value={messageSearch}
+                    onChange={(e) => setMessageSearch(e.target.value)}
+                    placeholder="Search messages in this conversation..."
+                    className="flex-1 bg-transparent text-xs text-foreground focus:outline-none placeholder:text-muted-foreground"
+                    autoFocus
+                  />
+                  {messageSearch && (
+                    <button
+                      onClick={() => setMessageSearch('')}
+                      className="p-1 text-muted-foreground hover:text-foreground rounded"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setMessageSearch('')
+                      setShowInChatSearch(false)
+                    }}
+                    className="text-[11px] text-muted-foreground hover:text-foreground font-semibold px-2 py-0.5 rounded border border-border hover:bg-muted"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+
               {/* Pinned Notice Announcement Banner */}
               {currentConversation.pinned_notice && (
                 <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-2">
@@ -1080,9 +1409,9 @@ export function UnifiedChatEngine({
               )}
 
               {/* =============================================================
-                  CHAT MESSAGES STREAM
+                  CHAT MESSAGES STREAM (WhatsApp-styled Background Wallpaper)
               ============================================================= */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-muted/10">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-[#efeae2] dark:bg-[#0b141a] bg-[radial-gradient(#0000000a_1px,transparent_1px)] dark:bg-[radial-gradient(#ffffff0a_1px,transparent_1px)] [background-size:18px_18px] transition-colors">
                 {displayedMessages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-2">
                     <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
@@ -1121,56 +1450,56 @@ export function UnifiedChatEngine({
 
                         {/* Message Bubble Container */}
                         <div className="relative max-w-[85%] sm:max-w-md group/bubble">
-                          {/* Hover Action Toolbar */}
+                          {/* WhatsApp Floating Reaction & Action Toolbar on Hover */}
                           <div
-                            className={`absolute -top-7 ${
+                            className={`absolute -top-8 ${
                               isSelf ? 'right-0' : 'left-0'
-                            } opacity-0 group-hover/bubble:opacity-100 transition-opacity bg-card border border-border shadow-md rounded-lg px-1.5 py-0.5 flex items-center gap-1 z-10`}
+                            } opacity-0 group-hover/bubble:opacity-100 transition-all duration-150 bg-white/95 dark:bg-[#202c33]/95 backdrop-blur-md border border-black/10 dark:border-white/10 shadow-lg rounded-full px-2 py-1 flex items-center gap-1 z-20`}
                           >
-                            {/* Quick Emoji Reactions */}
-                            {QUICK_EMOJIS.slice(0, 4).map((emoji) => (
+                            {/* Quick WhatsApp Emoji Reactions */}
+                            {QUICK_EMOJIS.slice(0, 6).map((emoji) => (
                               <button
                                 key={emoji}
                                 onClick={() => handleToggleReaction(msg.id, emoji)}
-                                className="text-xs hover:scale-125 transition-transform"
+                                className="text-sm hover:scale-130 active:scale-90 transition-transform px-0.5 cursor-pointer"
                               >
                                 {emoji}
                               </button>
                             ))}
 
-                            <div className="h-3 w-px bg-border mx-0.5" />
+                            <div className="h-3.5 w-px bg-border/70 mx-0.5" />
 
                             <button
                               onClick={() => setReplyingTo(msg)}
                               title="Reply"
-                              className="p-1 hover:text-primary transition-colors"
+                              className="p-1 text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
                             >
-                              <Reply className="w-3 h-3" />
+                              <Reply className="w-3.5 h-3.5" />
                             </button>
 
                             <button
                               onClick={() => handleCopyMessage(msg.text)}
                               title="Copy Text"
-                              className="p-1 hover:text-primary transition-colors"
+                              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                             >
-                              <Copy className="w-3 h-3" />
+                              <Copy className="w-3.5 h-3.5" />
                             </button>
 
                             <button
                               onClick={() => handleTogglePin(msg.id)}
                               title={isPinned ? 'Unpin message' : 'Pin message'}
-                              className="p-1 hover:text-amber-500 transition-colors"
+                              className="p-1 text-muted-foreground hover:text-amber-500 transition-colors"
                             >
-                              <Pin className="w-3 h-3" />
+                              <Pin className="w-3.5 h-3.5" />
                             </button>
 
                             {!isSelf && (
                               <button
                                 onClick={() => setShowReportModal(msg)}
                                 title="Report Message"
-                                className="p-1 hover:text-rose-500 transition-colors"
+                                className="p-1 text-muted-foreground hover:text-rose-500 transition-colors"
                               >
-                                <Flag className="w-3 h-3" />
+                                <Flag className="w-3.5 h-3.5" />
                               </button>
                             )}
 
@@ -1182,35 +1511,35 @@ export function UnifiedChatEngine({
                                     setInputText(msg.text)
                                   }}
                                   title="Edit"
-                                  className="p-1 hover:text-primary transition-colors"
+                                  className="p-1 text-muted-foreground hover:text-foreground transition-colors"
                                 >
-                                  <Edit2 className="w-3 h-3" />
+                                  <Edit2 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteMessage(msg.id)}
                                   title="Delete"
-                                  className="p-1 hover:text-rose-500 transition-colors"
+                                  className="p-1 text-muted-foreground hover:text-rose-500 transition-colors"
                                 >
-                                  <Trash2 className="w-3 h-3" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </>
                             )}
                           </div>
 
-                          {/* Replying quote badge */}
+                          {/* WhatsApp Quoted Reply card */}
                           {msg.reply_to_text && (
-                            <div className="mb-1 p-1.5 rounded-lg bg-black/10 dark:bg-white/10 text-[11px] border-l-2 border-primary truncate">
-                              <span className="font-bold opacity-80">{msg.reply_to_sender || 'Reply'}: </span>
-                              <span className="italic">{msg.reply_to_text}</span>
+                            <div className="mb-1.5 p-2 rounded-xl bg-black/5 dark:bg-black/30 text-[11px] border-l-4 border-emerald-500 truncate shadow-2xs">
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">{msg.reply_to_sender || 'Reply'}: </span>
+                              <span className="italic opacity-85">{msg.reply_to_text}</span>
                             </div>
                           )}
 
-                          {/* Bubble Content */}
+                          {/* WhatsApp Bubble Content */}
                           <div
-                            className={`p-3 rounded-2xl text-xs leading-relaxed shadow-xs ${
+                            className={`p-3 rounded-2xl text-xs leading-relaxed shadow-[0_1px_0.5px_rgba(11,20,26,0.13)] ${
                               isSelf
-                                ? 'bg-primary text-primary-foreground rounded-br-xs'
-                                : 'bg-card border border-border text-foreground rounded-bl-xs'
+                                ? 'bg-[#d9fdd3] dark:bg-[#005c4b] text-[#111b21] dark:text-[#e9edef] rounded-tr-xs border border-[#bce8b5]/50 dark:border-[#004e3f]'
+                                : 'bg-white dark:bg-[#202c33] text-[#111b21] dark:text-[#e9edef] rounded-tl-xs border border-black/5 dark:border-white/5'
                             }`}
                           >
                             {/* Pinned Marker */}
@@ -1241,8 +1570,8 @@ export function UnifiedChatEngine({
 
                             {/* File Document Attachment */}
                             {msg.type === 'file' && (
-                              <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/10 dark:bg-white/10 mb-2">
-                                <div className="p-2 rounded-lg bg-background text-primary">
+                              <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/5 dark:bg-black/20 mb-2">
+                                <div className="p-2 rounded-lg bg-background text-emerald-600 dark:text-emerald-400">
                                   <FileText className="w-5 h-5" />
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -1253,7 +1582,7 @@ export function UnifiedChatEngine({
                                   <a
                                     href={msg.media_url}
                                     download={msg.media_name || 'download'}
-                                    className="p-1.5 rounded-lg bg-background hover:bg-primary/20 text-foreground transition-colors"
+                                    className="p-1.5 rounded-lg bg-background hover:bg-muted text-foreground transition-colors"
                                   >
                                     <Download className="w-3.5 h-3.5" />
                                   </a>
@@ -1261,14 +1590,14 @@ export function UnifiedChatEngine({
                               </div>
                             )}
 
-                            {/* Voice Audio Memo Attachment */}
+                            {/* WhatsApp Voice Audio Memo Attachment */}
                             {msg.type === 'audio' && (
-                              <div className="flex items-center gap-3 p-2 rounded-xl bg-black/10 dark:bg-white/10 mb-1 min-w-[200px]">
+                              <div className="flex items-center gap-3 p-2 rounded-xl bg-black/5 dark:bg-black/20 mb-1.5 min-w-[210px]">
                                 <button
                                   onClick={() =>
                                     setPlayingAudioId(playingAudioId === msg.id ? null : msg.id)
                                   }
-                                  className="w-8 h-8 rounded-full bg-background text-primary flex items-center justify-center shadow-xs"
+                                  className="w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shadow-xs transition-colors shrink-0 cursor-pointer"
                                 >
                                   {playingAudioId === msg.id ? (
                                     <Pause className="w-4 h-4" />
@@ -1277,20 +1606,21 @@ export function UnifiedChatEngine({
                                   )}
                                 </button>
                                 <div className="flex-1 space-y-1">
-                                  <div className="flex items-center gap-1 h-3">
-                                    {[40, 70, 30, 90, 60, 100, 45, 80, 50, 75].map((h, i) => (
+                                  <div className="flex items-center gap-1 h-3.5">
+                                    {[40, 75, 30, 95, 60, 100, 45, 85, 50, 80, 65, 90, 40, 70].map((h, i) => (
                                       <span
                                         key={i}
                                         style={{ height: `${h}%` }}
-                                        className={`w-1 rounded-full ${
-                                          playingAudioId === msg.id ? 'bg-emerald-400 animate-pulse' : 'bg-current opacity-40'
+                                        className={`w-1 rounded-full transition-all ${
+                                          playingAudioId === msg.id ? 'bg-emerald-500 animate-pulse' : 'bg-emerald-600/40 dark:bg-emerald-400/40'
                                         }`}
                                       />
                                     ))}
                                   </div>
-                                  <span className="text-[10px] opacity-70">
-                                    00:{msg.duration_seconds ? String(msg.duration_seconds).padStart(2, '0') : '05'}
-                                  </span>
+                                  <div className="flex items-center justify-between text-[10px] text-muted-foreground font-medium">
+                                    <span>00:{msg.duration_seconds ? String(msg.duration_seconds).padStart(2, '0') : '12'}</span>
+                                    <span className="text-[9px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold">Voice note</span>
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -1298,22 +1628,22 @@ export function UnifiedChatEngine({
                             {/* Text message */}
                             {msg.text && <p className="whitespace-pre-wrap select-text">{msg.text}</p>}
 
-                            {/* Footer: Timestamp & Delivery Status */}
+                            {/* Footer: Timestamp & WhatsApp Delivery Status Ticks */}
                             <div
-                              className={`flex items-center justify-end gap-1 text-[10px] mt-1 ${
-                                isSelf ? 'text-primary-foreground/80' : 'text-muted-foreground'
+                              className={`flex items-center justify-end gap-1 text-[10px] mt-1 select-none font-sans ${
+                                isSelf ? 'text-[#667781] dark:text-[#8696a0]' : 'text-[#667781] dark:text-[#8696a0]'
                               }`}
                             >
-                              {msg.is_edited && <span className="italic">(edited)</span>}
+                              {msg.is_edited && <span className="italic text-[9px]">(edited)</span>}
                               <span>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                               {isSelf && (
-                                <span>
+                                <span title={msg.status === 'read' ? 'Read' : msg.status === 'delivered' ? 'Delivered' : 'Sent'}>
                                   {msg.status === 'read' ? (
-                                    <CheckCheck className="w-3.5 h-3.5 text-sky-400 inline" />
+                                    <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] inline ml-0.5" />
                                   ) : msg.status === 'delivered' ? (
-                                    <CheckCheck className="w-3.5 h-3.5 inline" />
+                                    <CheckCheck className="w-3.5 h-3.5 text-[#8696a0] inline ml-0.5" />
                                   ) : (
-                                    <Check className="w-3.5 h-3.5 inline" />
+                                    <Check className="w-3.5 h-3.5 text-[#8696a0] inline ml-0.5" />
                                   )}
                                 </span>
                               )}
@@ -1956,6 +2286,134 @@ export function UnifiedChatEngine({
             referrerPolicy="no-referrer"
             className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
           />
+        </div>
+      )}
+
+      {/* =========================================================================
+          SQL CODE & 2-PERSON PRIVACY RLS MODAL
+      ========================================================================= */}
+      {showSqlModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl max-h-[92vh] rounded-2xl bg-card border border-border shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-foreground flex items-center gap-2">
+                    <span>Chat Database SQL & 2-Person Privacy RLS</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider">
+                      PostgreSQL
+                    </span>
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Supabase tables, performance indexes, realtime streaming, and strict 2-participant privacy policies.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSqlModal(false)}
+                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Tabs & Action Bar */}
+            <div className="px-5 py-2.5 bg-muted/20 border-b border-border flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 text-xs">
+                <button
+                  onClick={() => setActiveSqlTab('all')}
+                  className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    activeSqlTab === 'all'
+                      ? 'bg-background text-foreground shadow-2xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Complete Setup SQL
+                </button>
+                <button
+                  onClick={() => setActiveSqlTab('rls')}
+                  className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    activeSqlTab === 'rls'
+                      ? 'bg-background text-foreground shadow-2xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Strict 2-Person RLS Policies
+                </button>
+                <button
+                  onClick={() => setActiveSqlTab('tables')}
+                  className={`px-3 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    activeSqlTab === 'tables'
+                      ? 'bg-background text-foreground shadow-2xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Tables & Schema
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const textToCopy =
+                      activeSqlTab === 'rls'
+                        ? CHAT_SQL_RLS
+                        : activeSqlTab === 'tables'
+                        ? CHAT_SQL_TABLES
+                        : CHAT_SQL_ALL
+                    navigator.clipboard.writeText(textToCopy)
+                    setCopiedSql(true)
+                    setTimeout(() => setCopiedSql(false), 2000)
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  {copiedSql ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Copied to Clipboard!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy SQL Code</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Code Viewer */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-950 font-mono text-xs text-slate-200 select-text leading-relaxed">
+              <pre className="whitespace-pre overflow-x-auto selection:bg-emerald-500/30 selection:text-emerald-200">
+                <code>
+                  {activeSqlTab === 'rls'
+                    ? CHAT_SQL_RLS
+                    : activeSqlTab === 'tables'
+                    ? CHAT_SQL_TABLES
+                    : CHAT_SQL_ALL}
+                </code>
+              </pre>
+            </div>
+
+            {/* Modal Footer Note */}
+            <div className="p-3.5 border-t border-border bg-muted/30 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Run in: <strong>Supabase Dashboard &rarr; SQL Editor &rarr; New Query &rarr; Run</strong></span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSqlModal(false)}
+                className="px-4 py-1.5 rounded-lg border border-border hover:bg-muted font-semibold text-foreground cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -18,9 +18,7 @@ export default async function StudentAttendancePage() {
   if (user.role === 'admin') redirect('/admin/attendance')
   if (user.role === 'teacher') redirect('/teacher/attendance')
 
-  // Use first mock student ID for demo if user is a real student
-  // In production this would be user.id
-  const studentId = 'stu_001'
+  const studentId = user.id
 
   const [summary, history, allClasses, leaveRequests, rule] = await Promise.all([
     getStudentAttendanceSummary(studentId),

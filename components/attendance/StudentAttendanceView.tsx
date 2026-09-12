@@ -58,7 +58,7 @@ export function StudentAttendanceView({
   return (
     <div className="space-y-4">
       {/* Low attendance alert */}
-      {isLow && summary && (
+      {isLow && summary && summary.totalClasses > 0 && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-400 animate-in fade-in duration-200">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <p className="text-xs font-semibold">
@@ -152,7 +152,7 @@ export function StudentAttendanceView({
                   style={{ width: `${Math.min(pct, 100)}%` }}
                 />
               </div>
-              {pct < minAttendancePercentage && (
+              {pct < minAttendancePercentage && summary && summary.totalClasses > 0 && (
                 <p className="text-[11px] text-rose-600 font-semibold">
                   Need {Math.ceil((minAttendancePercentage * (summary?.totalClasses || 0) - (summary?.presentCount || 0) * 100) / (100 - minAttendancePercentage))} more classes present to meet requirement
                 </p>

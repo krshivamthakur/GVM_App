@@ -23,6 +23,24 @@ export async function getChatUsersAction(): Promise<Profile[]> {
   return dataStore.getAllProfilesAdmin()
 }
 
+function isUserAuthorizedForConversation(
+  conversationId: string,
+  user: { id?: string; email?: string } | null
+): boolean {
+  if (!conversationId.startsWith('direct_')) return true // Public channels and cohort groups
+  if (!user) return false
+
+  const raw = conversationId.replace('direct_', '')
+  const participants = raw.split('__').map(p => p.toLowerCase().trim())
+  if (participants.length !== 2) return false
+
+  const uid = (user.id || '').toLowerCase().trim()
+  const uemail = (user.email || '').toLowerCase().trim()
+  const uusername = (user.email?.split('@')[0] || '').toLowerCase().trim()
+
+  return participants.some(p => p === uid || p === uemail || p === uusername)
+}
+
 export async function sendServerMessageAction(payload: {
   id?: string
   conversationId: string
@@ -41,6 +59,10 @@ export async function sendServerMessageAction(payload: {
   senderAvatar?: string | null
 }): Promise<{ success: boolean; message?: ChatMessage; error?: string }> {
   const currentUser = await getCurrentUser()
+  if (!isUserAuthorizedForConversation(payload.conversationId, currentUser)) {
+    return { success: false, error: 'Unauthorized: Private messages are strictly between the two participants only.' }
+  }
+
   const senderId = currentUser?.id || payload.senderId || 'guest_user'
   const senderName = currentUser?.full_name || (currentUser?.email ? currentUser.email.split('@')[0] : payload.senderName || 'Member')
   const senderRole = currentUser?.role || payload.senderRole || 'student'
@@ -114,6 +136,11 @@ export async function sendServerMessageAction(payload: {
 }
 
 export async function getServerMessagesAction(conversationId: string): Promise<ChatMessage[]> {
+  const currentUser = await getCurrentUser()
+  if (!isUserAuthorizedForConversation(conversationId, currentUser)) {
+    return [] // Strictly block third parties from reading private messages
+  }
+
   try {
     const supabase = createAdminClient()
     const { data, error } = await supabase
@@ -132,6 +159,9 @@ export async function getServerMessagesAction(conversationId: string): Promise<C
 }
 
 export async function getAllRecentServerMessagesAction(): Promise<Record<string, ChatMessage[]>> {
+  const currentUser = await getCurrentUser()
+  if (!currentUser) return {}
+
   try {
     const supabase = createAdminClient()
     const { data, error } = await supabase
@@ -143,6 +173,10 @@ export async function getAllRecentServerMessagesAction(): Promise<Record<string,
     if (!error && data) {
       const grouped: Record<string, ChatMessage[]> = {}
       data.forEach((m: ChatMessage) => {
+        // Enforce private message isolation: only include if user is authorized!
+        if (!isUserAuthorizedForConversation(m.conversation_id, currentUser)) {
+          return
+        }
         if (!grouped[m.conversation_id]) {
           grouped[m.conversation_id] = []
         }
