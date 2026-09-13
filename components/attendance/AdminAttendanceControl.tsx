@@ -5,6 +5,7 @@ import {
   AttendanceSummary,
   AttendanceSession,
   AttendanceClass,
+  AttendanceSubject,
   AttendanceRule,
   AttendanceAuditLog,
   LeaveRequest,
@@ -18,13 +19,11 @@ import {
   BarChart3,
   Users,
   Lock,
-  Unlock,
   Settings,
   History,
   AlertTriangle,
   CheckCircle2,
   Download,
-  Eye,
   Save,
   QrCode,
   Fingerprint,
@@ -34,12 +33,26 @@ import {
   FileText,
   TrendingDown,
   ClipboardList,
+  Plus,
+  Pencil,
+  Trash2,
+  BookOpen,
+  UserPlus,
+  X,
+  GraduationCap,
 } from 'lucide-react'
 import {
   updateAttendanceRules,
   lockAttendanceSession,
   correctAttendanceRecord,
   getAttendanceReport,
+  createClass,
+  updateClass,
+  deleteClass,
+  addClassStudent,
+  removeClassStudent,
+  type TeacherOption,
+  type CourseOption,
 } from '@/actions/attendance-actions'
 
 interface AdminAttendanceControlProps {
@@ -51,19 +64,23 @@ interface AdminAttendanceControlProps {
   leaveRequests: LeaveRequest[]
   adminId: string
   adminName: string
+  teachers?: TeacherOption[]
+  courses?: CourseOption[]
 }
 
-type Tab = 'overview' | 'sessions' | 'leaves' | 'rules' | 'advanced'
+type Tab = 'overview' | 'classes' | 'sessions' | 'leaves' | 'rules' | 'advanced'
 
 export function AdminAttendanceControl({
   allSummaries,
   sessions: initialSessions,
-  classes,
+  classes: initialClasses,
   rule: initialRule,
   auditLog: initialAuditLog,
   leaveRequests,
   adminId,
   adminName,
+  teachers = [],
+  courses = [],
 }: AdminAttendanceControlProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [sessions, setSessions] = useState<AttendanceSession[]>(initialSessions)
@@ -74,6 +91,16 @@ export function AdminAttendanceControl({
   const [auditLog, setAuditLog] = useState<AttendanceAuditLog[]>(initialAuditLog)
   const [sessionFilter, setSessionFilter] = useState<'all' | 'open' | 'locked'>('all')
   const [correctingId, setCorrectingId] = useState<string | null>(null)
+
+  // Classes management state
+  const [classes, setClasses] = useState<AttendanceClass[]>(initialClasses)
+  const [classFormOpen, setClassFormOpen] = useState(false)
+  const [editingClass, setEditingClass] = useState<AttendanceClass | null>(null)
+  const [classForm, setClassForm] = useState({ name: '', courseName: '', courseId: '', teacherName: '', teacherId: '' })
+  const [subjectForm, setSubjectForm] = useState({ name: '', code: '' })
+  const [studentForm, setStudentForm] = useState({ name: '', rollNumber: '' })
+  const [expandedClass, setExpandedClass] = useState<string | null>(null)
+  const [classActionLoading, setClassActionLoading] = useState(false)
 
   const lowAttendance = allSummaries.filter(s => s.isLowAttendance)
   const totalStudents = allSummaries.length
@@ -132,8 +159,9 @@ export function AdminAttendanceControl({
       <div className="flex items-center gap-1 p-1.5 rounded-xl bg-card border border-border shadow-sm flex-wrap">
         {([
           { id: 'overview', label: 'Overview', icon: BarChart3 },
-          { id: 'sessions', label: 'Manage Sessions', icon: ClipboardList },
-          { id: 'leaves', label: `Leave Approvals${pendingLeaves > 0 ? ` (${pendingLeaves})` : ''}`, icon: FileText },
+          { id: 'classes', label: `Manage Classes (${classes.length})`, icon: GraduationCap },
+          { id: 'sessions', label: 'Sessions', icon: ClipboardList },
+          { id: 'leaves', label: `Leaves${pendingLeaves > 0 ? ` (${pendingLeaves})` : ''}`, icon: FileText },
           { id: 'rules', label: 'Rules & Audit', icon: Settings },
           { id: 'advanced', label: 'Advanced', icon: Cpu },
         ] as const).map(tab => (
@@ -285,6 +313,366 @@ export function AdminAttendanceControl({
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB: CLASSES */}
+      {activeTab === 'classes' && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Class Management</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Create and manage classes, subjects, and student roster.</p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingClass(null)
+                setClassForm({ name: '', courseName: '', courseId: '', teacherName: '', teacherId: '' })
+                setClassFormOpen(true)
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-sm hover:bg-primary/90 transition-colors cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> New Class
+            </button>
+          </div>
+
+          {/* Create/Edit Class Modal */}
+          {classFormOpen && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 shadow-sm space-y-3">
+              <h4 className="text-sm font-bold text-foreground">{editingClass ? 'Edit Class' : 'Create New Class'}</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Class Name */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Class Name *</label>
+                  <input
+                    className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="e.g., Class 11 — PCM"
+                    value={classForm.name}
+                    onChange={e => setClassForm(p => ({ ...p, name: e.target.value }))}
+                  />
+                </div>
+
+                {/* Course dropdown */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Course / Program</label>
+                  {courses.length > 0 ? (
+                    <>
+                      <select
+                        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
+                        value={classForm.courseId}
+                        onChange={e => {
+                          const selected = courses.find(c => c.id === e.target.value)
+                          setClassForm(p => ({
+                            ...p,
+                            courseId: e.target.value,
+                            courseName: selected?.title || '',
+                          }))
+                        }}
+                      >
+                        <option value="">— Select a course —</option>
+                        {courses.map(c => (
+                          <option key={c.id} value={c.id}>
+                            {c.title}{c.category ? ` (${c.category})` : ''}
+                          </option>
+                        ))}
+                        <option value="__custom__">✏️ Type custom name…</option>
+                      </select>
+                      {classForm.courseId === '__custom__' && (
+                        <input
+                          className="mt-1.5 w-full px-3 py-2 rounded-xl border border-primary/40 bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          placeholder="Enter course / program name"
+                          value={classForm.courseName}
+                          onChange={e => setClassForm(p => ({ ...p, courseName: e.target.value }))}
+                          autoFocus
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <input
+                      className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      placeholder="e.g., Physics, Chemistry & Math"
+                      value={classForm.courseName}
+                      onChange={e => setClassForm(p => ({ ...p, courseName: e.target.value }))}
+                    />
+                  )}
+                </div>
+
+                {/* Teacher dropdown */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-foreground mb-1">Assigned Teacher</label>
+                  {teachers.length > 0 ? (
+                    <>
+                      <select
+                        className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer appearance-none"
+                        value={classForm.teacherId}
+                        onChange={e => {
+                          const selected = teachers.find(t => t.id === e.target.value)
+                          setClassForm(p => ({
+                            ...p,
+                            teacherId: e.target.value,
+                            teacherName: selected?.name || '',
+                          }))
+                        }}
+                      >
+                        <option value="">— Select a teacher —</option>
+                        {teachers.map(t => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}{t.email ? ` — ${t.email}` : ''}
+                          </option>
+                        ))}
+                        <option value="__custom__">✏️ Type custom name…</option>
+                      </select>
+                      {classForm.teacherId === '__custom__' && (
+                        <input
+                          className="mt-1.5 w-full px-3 py-2 rounded-xl border border-primary/40 bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                          placeholder="Enter teacher name"
+                          value={classForm.teacherName}
+                          onChange={e => setClassForm(p => ({ ...p, teacherName: e.target.value }))}
+                          autoFocus
+                        />
+                      )}
+                    </>
+                  ) : (
+                    <input
+                      className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      placeholder="Teacher name"
+                      value={classForm.teacherName}
+                      onChange={e => setClassForm(p => ({ ...p, teacherName: e.target.value }))}
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={!classForm.name.trim() || classActionLoading}
+                  onClick={async () => {
+                    if (!classForm.name.trim()) return
+                    setClassActionLoading(true)
+                    const resolvedTeacherId = classForm.teacherId && classForm.teacherId !== '__custom__' ? classForm.teacherId : adminId
+                    const resolvedTeacherName = classForm.teacherName || adminName
+                    const resolvedCourseId = classForm.courseId && classForm.courseId !== '__custom__' ? classForm.courseId : `course_${Date.now()}`
+                    const resolvedCourseName = classForm.courseName || classForm.name
+                    if (editingClass) {
+                      await updateClass(editingClass.id, {
+                        name: classForm.name,
+                        teacherId: resolvedTeacherId,
+                        teacherName: resolvedTeacherName,
+                      })
+                      setClasses(prev => prev.map(c =>
+                        c.id === editingClass.id ? { ...c, name: classForm.name, teacherName: resolvedTeacherName, teacherId: resolvedTeacherId, courseName: resolvedCourseName } : c
+                      ))
+                    } else {
+                      const newCls = await createClass({
+                        name: classForm.name,
+                        courseId: resolvedCourseId,
+                        courseName: resolvedCourseName,
+                        teacherId: resolvedTeacherId,
+                        teacherName: resolvedTeacherName,
+                        students: [],
+                        subjects: [],
+                      })
+                      setClasses(prev => [...prev, newCls])
+                    }
+                    setClassFormOpen(false)
+                    setClassActionLoading(false)
+                  }}
+                  className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-sm hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  {classActionLoading ? 'Saving...' : editingClass ? 'Save Changes' : 'Create Class'}
+                </button>
+                <button
+                  onClick={() => setClassFormOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Class List */}
+          {classes.length === 0 ? (
+            <div className="flex flex-col items-center gap-4 py-16 text-center rounded-2xl border border-dashed border-border bg-card">
+              <div className="p-4 rounded-full bg-muted">
+                <GraduationCap className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">No classes created yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Click "New Class" to get started.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {classes.map(cls => (
+                <div key={cls.id} className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                  {/* Class header */}
+                  <div className="flex items-center gap-3 p-4">
+                    <div className="p-2.5 rounded-xl bg-primary/10 shrink-0">
+                      <BookOpen className="w-4 h-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-foreground truncate">{cls.name}</h4>
+                      <p className="text-[11px] text-muted-foreground">{cls.courseName} · {cls.students.length} students · Teacher: {cls.teacherName}</p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => setExpandedClass(expandedClass === cls.id ? null : cls.id)}
+                        className="p-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                        title="Manage students & subjects"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingClass(cls)
+                          setClassForm({
+                            name: cls.name,
+                            courseName: cls.courseName,
+                            courseId: cls.courseId || '',
+                            teacherName: cls.teacherName,
+                            teacherId: cls.teacherId || '',
+                          })
+                          setClassFormOpen(true)
+                        }}
+                        className="p-1.5 rounded-lg border border-border text-xs font-semibold text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors cursor-pointer"
+                        title="Edit class"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Delete "${cls.name}"? This cannot be undone.`)) return
+                          await deleteClass(cls.id)
+                          setClasses(prev => prev.filter(c => c.id !== cls.id))
+                        }}
+                        className="p-1.5 rounded-lg border border-rose-200 dark:border-rose-900 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                        title="Delete class"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded: Subjects & Students */}
+                  {expandedClass === cls.id && (
+                    <div className="border-t border-border bg-muted/20 px-4 pb-4 pt-3 space-y-4">
+                      {/* Subjects */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[11px] font-bold text-foreground uppercase tracking-wider">Subjects ({cls.subjects.length})</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {cls.subjects.map(sub => (
+                            <span key={sub.id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-card border border-border text-[11px] font-semibold text-foreground">
+                              {sub.name} <span className="text-muted-foreground">({sub.code})</span>
+                            </span>
+                          ))}
+                          {cls.subjects.length === 0 && <span className="text-[11px] text-muted-foreground">No subjects yet.</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            className="flex-1 px-2.5 py-1.5 rounded-lg border border-border bg-background text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="Subject name"
+                            value={subjectForm.name}
+                            onChange={e => setSubjectForm(p => ({ ...p, name: e.target.value }))}
+                          />
+                          <input
+                            className="w-24 px-2.5 py-1.5 rounded-lg border border-border bg-background text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="Code"
+                            value={subjectForm.code}
+                            onChange={e => setSubjectForm(p => ({ ...p, code: e.target.value }))}
+                          />
+                          <button
+                            disabled={!subjectForm.name.trim()}
+                            onClick={() => {
+                              if (!subjectForm.name.trim()) return
+                              const newSub: AttendanceSubject = {
+                                id: `sub_${Date.now()}`,
+                                name: subjectForm.name,
+                                code: subjectForm.code || subjectForm.name.slice(0,3).toUpperCase(),
+                                classId: cls.id,
+                              }
+                              setClasses(prev => prev.map(c =>
+                                c.id === cls.id ? { ...c, subjects: [...c.subjects, newSub] } : c
+                              ))
+                              setSubjectForm({ name: '', code: '' })
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground text-[11px] font-bold cursor-pointer disabled:opacity-50"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Students */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[11px] font-bold text-foreground uppercase tracking-wider">Students ({cls.students.length})</p>
+                        </div>
+                        <div className="space-y-1 mb-2 max-h-40 overflow-y-auto">
+                          {cls.students.map(stu => (
+                            <div key={stu.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-muted/50">
+                              <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                <span className="text-[9px] font-black text-primary">{stu.name.charAt(0)}</span>
+                              </div>
+                              <span className="text-xs font-medium text-foreground flex-1">{stu.name}</span>
+                              {stu.rollNumber && <span className="text-[10px] text-muted-foreground">#{stu.rollNumber}</span>}
+                              <button
+                                onClick={async () => {
+                                  await removeClassStudent(cls.id, stu.id)
+                                  setClasses(prev => prev.map(c =>
+                                    c.id === cls.id ? { ...c, students: c.students.filter(s => s.id !== stu.id) } : c
+                                  ))
+                                }}
+                                className="p-0.5 rounded text-rose-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                          {cls.students.length === 0 && <p className="text-[11px] text-muted-foreground px-1">No students enrolled.</p>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            className="flex-1 px-2.5 py-1.5 rounded-lg border border-border bg-background text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="Student name"
+                            value={studentForm.name}
+                            onChange={e => setStudentForm(p => ({ ...p, name: e.target.value }))}
+                          />
+                          <input
+                            className="w-28 px-2.5 py-1.5 rounded-lg border border-border bg-background text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            placeholder="Roll No."
+                            value={studentForm.rollNumber}
+                            onChange={e => setStudentForm(p => ({ ...p, rollNumber: e.target.value }))}
+                          />
+                          <button
+                            disabled={!studentForm.name.trim()}
+                            onClick={async () => {
+                              if (!studentForm.name.trim()) return
+                              const newStu = {
+                                id: `stu_${Date.now()}`,
+                                name: studentForm.name,
+                                rollNumber: studentForm.rollNumber || undefined,
+                              }
+                              await addClassStudent(cls.id, newStu)
+                              setClasses(prev => prev.map(c =>
+                                c.id === cls.id ? { ...c, students: [...c.students, { ...newStu, enrolledAt: new Date().toISOString().slice(0,10) }] } : c
+                              ))
+                              setStudentForm({ name: '', rollNumber: '' })
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-bold cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                          >
+                            <UserPlus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

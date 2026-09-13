@@ -25,30 +25,55 @@ import {
   X,
   ExternalLink,
   ChevronRight,
-  Filter
+  Filter,
+  Tags,
+  Tag,
+  Edit2,
+  Check,
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react'
 import { formatImageUrl, DEFAULT_FALLBACK_THUMBNAIL } from '@/lib/utils'
+import { usePlatformSettings, DEFAULT_COURSE_CATEGORIES } from '@/contexts/PlatformSettingsContext'
 
 interface AdminCourseManagementProps {
   initialCourses: Course[]
   teachers: Profile[]
 }
 
-const CATEGORIES = ['Programming', 'Physics', 'Chemistry', 'Mathematics', 'Biology', 'General']
-
 export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseManagementProps) {
   const router = useRouter()
+  const {
+    settings,
+    addCourseCategory,
+    deleteCourseCategory,
+    updateCourseCategory,
+    resetCourseCategories
+  } = usePlatformSettings()
+
+  const categories = settings.courseCategories && settings.courseCategories.length > 0
+    ? settings.courseCategories
+    : DEFAULT_COURSE_CATEGORIES
+
   const [courses, setCourses] = useState<Course[]>(initialCourses)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all')
   const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [isPending, startTransition] = useTransition()
 
+  // Category Manager Modal State
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [newCatName, setNewCatName] = useState('')
+  const [catError, setCatError] = useState('')
+  const [editingCatOld, setEditingCatOld] = useState<string | null>(null)
+  const [editingCatNew, setEditingCatNew] = useState('')
+  const [deletingCatWithCourses, setDeletingCatWithCourses] = useState<{ name: string; count: number } | null>(null)
+
   // Create Course Modal State
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createTitle, setCreateTitle] = useState('')
   const [createDesc, setCreateDesc] = useState('')
-  const [createCategory, setCreateCategory] = useState('Programming')
+  const [createCategory, setCreateCategory] = useState(categories[0] || 'General')
   const [createStatus, setCreateStatus] = useState<CourseStatus>('published')
   const [createTeacherId, setCreateTeacherId] = useState<string>(teachers[0]?.id || '')
   const [createThumbnail, setCreateThumbnail] = useState('https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80')
@@ -89,6 +114,91 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
   const publishedCourses = courses.filter((c) => c.status === 'published').length
   const draftCourses = courses.filter((c) => c.status === 'draft').length
   const totalLectures = courses.reduce((acc, c) => acc + (c._count?.lectures || 0), 0)
+
+  // Category Management Handlers
+  const handleAddCategorySubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setCatError('')
+    const trimmed = newCatName.trim()
+    if (!trimmed) {
+      setCatError('Category name cannot be empty.')
+      return
+    }
+    if (categories.some((c) => c.toLowerCase() === trimmed.toLowerCase())) {
+      setCatError(`Category "${trimmed}" already exists.`)
+      return
+    }
+    addCourseCategory(trimmed)
+    setNewCatName('')
+  }
+
+  const handleStartRename = (cat: string) => {
+    setEditingCatOld(cat)
+    setEditingCatNew(cat)
+    setCatError('')
+  }
+
+  const handleSaveRename = () => {
+    if (!editingCatOld) return
+    const trimmed = editingCatNew.trim()
+    if (!trimmed) {
+      setCatError('Category name cannot be empty.')
+      return
+    }
+    if (
+      categories.some(
+        (c) => c.toLowerCase() !== editingCatOld.toLowerCase() && c.toLowerCase() === trimmed.toLowerCase()
+      )
+    ) {
+      setCatError(`Category "${trimmed}" already exists.`)
+      return
+    }
+
+    const oldName = editingCatOld
+    updateCourseCategory(oldName, trimmed)
+
+    // Update matching courses in local state
+    setCourses((prev) =>
+      prev.map((c) => (c.category?.toLowerCase() === oldName.toLowerCase() ? { ...c, category: trimmed } : c))
+    )
+
+    // If active filter was the old name, update it
+    if (categoryFilter === oldName) {
+      setCategoryFilter(trimmed)
+    }
+
+    setEditingCatOld(null)
+    setEditingCatNew('')
+  }
+
+  const handleDeleteCategoryClick = (cat: string) => {
+    setCatError('')
+    const count = courses.filter((c) => c.category?.toLowerCase() === cat.toLowerCase()).length
+    if (count > 0) {
+      setDeletingCatWithCourses({ name: cat, count })
+    } else {
+      deleteCourseCategory(cat)
+      if (categoryFilter === cat) {
+        setCategoryFilter('all')
+      }
+    }
+  }
+
+  const handleConfirmDeleteWithReassign = () => {
+    if (!deletingCatWithCourses) return
+    const targetCat = deletingCatWithCourses.name
+
+    // Reassign affected courses to 'General'
+    setCourses((prev) =>
+      prev.map((c) => (c.category?.toLowerCase() === targetCat.toLowerCase() ? { ...c, category: 'General' } : c))
+    )
+
+    deleteCourseCategory(targetCat)
+    if (categoryFilter === targetCat) {
+      setCategoryFilter('all')
+    }
+    setDeletingCatWithCourses(null)
+  }
 
   // Quick Toggle Publish
   const handleTogglePublish = async (courseId: string) => {
@@ -245,13 +355,26 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
           </p>
         </div>
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>+ Create New Course</span>
-        </button>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowCategoryModal(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer"
+            title="Manage, add, and delete course categories"
+          >
+            <Tags className="w-4 h-4 text-primary" />
+            <span>Manage Categories</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-xs sm:text-sm font-bold shadow-md shadow-primary/20 hover:bg-primary/90 transition-all shrink-0 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>+ Create New Course</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Stats Bar */}
@@ -327,19 +450,29 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
             </button>
           </div>
 
-          {/* Category Dropdown */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-1.5 rounded-xl border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary shrink-0"
-          >
-            <option value="all">All Categories</option>
-            {CATEGORIES.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
+          {/* Category Dropdown with Manage Action */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="px-3 py-1.5 rounded-xl border border-border bg-background text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setShowCategoryModal(true)}
+              className="p-2 rounded-xl border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title="Add or manage course categories"
+            >
+              <Tags className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -599,7 +732,7 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
                     onChange={(e) => setCreateCategory(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   >
-                    {CATEGORIES.map((cat) => (
+                    {categories.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
                       </option>
@@ -735,7 +868,7 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
                     onChange={(e) => setEditCategory(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                   >
-                    {CATEGORIES.map((cat) => (
+                    {categories.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
                       </option>
@@ -844,6 +977,228 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
                 className="px-5 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold shadow-md hover:bg-rose-700 disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Confirm Delete Course'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Manage Course Categories */}
+      {showCategoryModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-xl rounded-3xl border border-border bg-card p-6 shadow-2xl space-y-5 animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary">
+                  <Tags className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                    <span>Course Categories Manager</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
+                      {categories.length} Active
+                    </span>
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Add new categories, rename existing labels, or delete unused course categories globally.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCategoryModal(false)
+                  setEditingCatOld(null)
+                  setDeletingCatWithCourses(null)
+                  setCatError('')
+                }}
+                className="p-1.5 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Error notice */}
+            {catError && (
+              <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-700 dark:text-rose-300 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>{catError}</span>
+              </div>
+            )}
+
+            {/* Warning when deleting category with courses */}
+            {deletingCatWithCourses && (
+              <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs space-y-2">
+                <div className="flex items-center gap-2 font-bold text-amber-800 dark:text-amber-200">
+                  <AlertTriangle className="w-4 h-4 text-amber-600" />
+                  <span>Category In Use: &quot;{deletingCatWithCourses.name}&quot;</span>
+                </div>
+                <p className="text-amber-700 dark:text-amber-300">
+                  There are <strong>{deletingCatWithCourses.count} course(s)</strong> currently assigned to this category.
+                  Deleting it will safely reassign those courses to <strong>&quot;General&quot;</strong>.
+                </p>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setDeletingCatWithCourses(null)}
+                    className="px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-200 font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmDeleteWithReassign}
+                    className="px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground font-semibold hover:bg-destructive/90 cursor-pointer"
+                  >
+                    Reassign to General & Delete
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Add New Category Form */}
+            <form onSubmit={handleAddCategorySubmit} className="flex gap-2">
+              <div className="relative flex-1">
+                <Tag className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Enter new category name (e.g. Artificial Intelligence, Robotics)..."
+                  value={newCatName}
+                  onChange={(e) => {
+                    setNewCatName(e.target.value)
+                    setCatError('')
+                  }}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-border bg-background text-xs sm:text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!newCatName.trim()}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:bg-primary/90 disabled:opacity-50 transition-all shrink-0 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Category</span>
+              </button>
+            </form>
+
+            {/* Categories List */}
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 min-h-[220px]">
+              <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                Active Categories ({categories.length})
+              </div>
+
+              <div className="divide-y divide-border/60 rounded-2xl border border-border bg-background/50 overflow-hidden">
+                {categories.map((cat) => {
+                  const isEditing = editingCatOld === cat
+                  const courseCount = courses.filter((c) => c.category?.toLowerCase() === cat.toLowerCase()).length
+
+                  return (
+                    <div
+                      key={cat}
+                      className="flex items-center justify-between gap-3 p-3 hover:bg-muted/40 transition-colors"
+                    >
+                      {isEditing ? (
+                        <div className="flex items-center gap-2 flex-1">
+                          <input
+                            type="text"
+                            value={editingCatNew}
+                            onChange={(e) => setEditingCatNew(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault()
+                                handleSaveRename()
+                              } else if (e.key === 'Escape') {
+                                setEditingCatOld(null)
+                              }
+                            }}
+                            autoFocus
+                            className="flex-1 px-3 py-1.5 rounded-lg border border-primary bg-card text-xs font-semibold text-foreground focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleSaveRename}
+                            className="p-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors cursor-pointer"
+                            title="Save Rename"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCatOld(null)}
+                            className="p-1.5 rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+                            title="Cancel"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                              <Tag className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs sm:text-sm font-semibold text-foreground block truncate">
+                                {cat}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {courseCount === 1 ? '1 course' : `${courseCount} courses`}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStartRename(cat)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                              title="Rename category"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCategoryClick(cat)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                              title={`Delete category "${cat}"`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="pt-3 flex items-center justify-between border-t border-border">
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Reset course categories back to the default list (Programming, Physics, Chemistry, Mathematics, Biology, General)?')) {
+                    resetCourseCategories()
+                  }
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset to Default Categories</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCategoryModal(false)
+                  setEditingCatOld(null)
+                  setDeletingCatWithCourses(null)
+                }}
+                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-xs hover:bg-primary/90 transition-all cursor-pointer"
+              >
+                Done
               </button>
             </div>
           </div>

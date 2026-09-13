@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useNotifications } from '@/contexts/NotificationContext'
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext'
 import {
   LayoutDashboard,
   BookOpen,
@@ -32,6 +33,7 @@ export function BottomNavigationBar() {
   const pathname = usePathname()
   const { role } = useAuth()
   const { unreadCount } = useNotifications()
+  const { settings } = usePlatformSettings()
 
   // Determine current portal context from URL prefix or fallback to auth role
   const portalRole = pathname.startsWith('/admin')
@@ -186,10 +188,12 @@ export function BottomNavigationBar() {
         {items.map((item) => {
           const active = isItemActive(item)
           const Icon = item.icon
+          const displayTitle = settings.bottomNavLabels?.[item.href]?.title || settings.navLabels?.[item.href] || item.title
+          const displayShortTitle = settings.bottomNavLabels?.[item.href]?.shortTitle || item.shortTitle || displayTitle
 
           return (
             <Link
-              key={item.title}
+              key={item.href}
               href={item.href}
               className={cn(
                 'relative flex-1 flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition-all duration-200 group select-none',
@@ -250,13 +254,13 @@ export function BottomNavigationBar() {
                     : 'text-muted-foreground'
                 )}
               >
-                {item.shortTitle ? (
+                {displayShortTitle && displayShortTitle !== displayTitle ? (
                   <>
-                    <span className="sm:hidden">{item.shortTitle}</span>
-                    <span className="hidden sm:inline">{item.title}</span>
+                    <span className="sm:hidden">{displayShortTitle}</span>
+                    <span className="hidden sm:inline">{displayTitle}</span>
                   </>
                 ) : (
-                  item.title
+                  displayTitle
                 )}
               </span>
             </Link>

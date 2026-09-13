@@ -2,19 +2,24 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 import { requireRole } from '@/actions/auth-actions'
-import { getCourses } from '@/actions/course-actions'
+import { getAllCoursesAdmin } from '@/actions/course-actions'
 import {
   getFeeFinancialSummary,
   getStudentFeeProfiles,
   getFeeStructures,
   getFeeCategories,
   getFeePayments,
-  getFeeNotificationLogs
+  getFeeNotificationLogs,
+  getFeeDiscounts,
+  syncStudentsFromDirectory
 } from '@/actions/fee-actions'
 import { AdminFeeDashboard } from '@/components/fee/AdminFeeDashboard'
 
 export default async function AdminFeesPage() {
   await requireRole(['admin'])
+
+  // Run directory sync sequentially once to guarantee clean unique state
+  await syncStudentsFromDirectory()
 
   const [
     summary,
@@ -23,6 +28,7 @@ export default async function AdminFeesPage() {
     categories,
     payments,
     notifications,
+    discounts,
     courses
   ] = await Promise.all([
     getFeeFinancialSummary(),
@@ -31,7 +37,8 @@ export default async function AdminFeesPage() {
     getFeeCategories(),
     getFeePayments(),
     getFeeNotificationLogs(),
-    getCourses()
+    getFeeDiscounts(),
+    getAllCoursesAdmin()
   ])
 
   return (
@@ -43,6 +50,7 @@ export default async function AdminFeesPage() {
         initialCategories={categories}
         initialPayments={payments}
         initialNotifications={notifications}
+        initialDiscounts={discounts}
         initialCourses={courses.map(c => ({
           id: c.id,
           title: c.title,

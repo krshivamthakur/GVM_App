@@ -98,5 +98,31 @@ export interface CourseWithCurriculum extends Course {
   total_lectures_count?: number
 }
 
+export interface CourseCategory {
+  id: string
+  name: string
+  slug?: string
+  description?: string | null
+  color?: string
+  is_default?: boolean
+  display_order?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface PlatformSettingsRecord {
+  id: string
+  app_name: string
+  tagline?: string
+  logo_url?: string | null
+  favicon_url?: string | null
+  support_email?: string
+  support_phone?: string
+  nav_labels?: Record<string, string>
+  bottom_bar_labels?: Record<string, string>
+  course_categories?: string[]
+  updated_at: string
+}
+
 export * from './short'
 export * from './notification'

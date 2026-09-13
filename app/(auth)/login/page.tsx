@@ -15,9 +15,11 @@ import {
 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { GVMPreloader } from '@/components/ui/GVMPreloader'
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext'
 
 export default function LoginPage() {
   const router = useRouter()
+  const { settings } = usePlatformSettings()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -98,11 +100,15 @@ export default function LoginPage() {
               />
             </svg>
             <div className="h-16 w-16 rounded-full overflow-hidden p-1 bg-white dark:bg-zinc-900 shadow-md ring-1 ring-emerald-500/30 flex items-center justify-center">
-              <Image src="/gvm.png" alt="GVM Logo" width={64} height={64} className="h-full w-full object-contain rounded-full" />
+              <img
+                src={settings.logoUrl || '/gvm.png'}
+                alt={settings.logoText || settings.platformName || 'Logo'}
+                className="h-full w-full object-contain rounded-full"
+              />
             </div>
           </div>
           <h1 className="text-2xl font-extrabold text-zinc-900 dark:text-zinc-50 tracking-tight">
-            GVM
+            {settings.logoText || settings.platformName || 'GVM'}
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Enter your account ID / Email and password to access your role portal.

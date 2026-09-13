@@ -6,6 +6,15 @@ import { dataStore } from '@/lib/data/store'
 import { Profile, UserRole, TeacherStatus } from '@/types/database'
 import { getCurrentUser } from '@/actions/auth-actions'
 
+function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 1500): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promiseLike),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
+    )
+  ])
+}
+
 export async function getAdminPlatformStats() {
   const user = await getCurrentUser()
   if (!user || user.role !== 'admin') {
@@ -28,13 +37,16 @@ export async function getAdminPlatformStats() {
       { count: totalCourses },
       { count: publishedCourses },
       { count: totalLectures }
-    ] = await Promise.all([
-      supabase.from('Profile').select('*', { count: 'exact', head: true }).eq('role', 'student'),
-      supabase.from('Profile').select('*', { count: 'exact', head: true }).eq('role', 'teacher'),
-      supabase.from('courses').select('*', { count: 'exact', head: true }),
-      supabase.from('courses').select('*', { count: 'exact', head: true }).eq('status', 'published'),
-      supabase.from('lectures').select('*', { count: 'exact', head: true })
-    ])
+    ] = await withTimeout(
+      Promise.all([
+        supabase.from('Profile').select('*', { count: 'exact', head: true }).eq('role', 'student'),
+        supabase.from('Profile').select('*', { count: 'exact', head: true }).eq('role', 'teacher'),
+        supabase.from('courses').select('*', { count: 'exact', head: true }),
+        supabase.from('courses').select('*', { count: 'exact', head: true }).eq('status', 'published'),
+        supabase.from('lectures').select('*', { count: 'exact', head: true })
+      ]),
+      1500
+    )
 
     if (totalStudents !== null && totalTeachers !== null) {
       return {

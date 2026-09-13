@@ -8,17 +8,20 @@ import {
   FeePayment,
   FeeFinancialSummary,
   FeeNotificationLog,
+  FeeDiscount,
   PaymentMode,
   FeePaymentStatus
 } from '@/types/fee'
 import {
   sendFeeReminder,
   verifyOrCancelPayment,
-  deleteFeeStructure
+  deleteFeeStructure,
+  syncStudentsFromDirectory
 } from '@/actions/fee-actions'
 import { FeeCollectionModal } from './FeeCollectionModal'
 import { FeeReceiptModal } from './FeeReceiptModal'
 import { FeeStructureModal } from './FeeStructureModal'
+import { AssignFeeStructureModal } from './AssignFeeStructureModal'
 import {
   Wallet,
   TrendingUp,
@@ -39,7 +42,11 @@ import {
   Filter,
   CreditCard,
   Building,
-  RotateCcw
+  RotateCcw,
+  RefreshCw,
+  SlidersHorizontal,
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react'
 
 interface AdminFeeDashboardProps {
@@ -49,6 +56,7 @@ interface AdminFeeDashboardProps {
   initialCategories: FeeCategory[]
   initialPayments: FeePayment[]
   initialNotifications: FeeNotificationLog[]
+  initialDiscounts?: FeeDiscount[]
   initialCourses?: Array<{ id: string; title: string; category?: string; price?: number }>
 }
 
@@ -59,6 +67,7 @@ export function AdminFeeDashboard({
   initialCategories,
   initialPayments,
   initialNotifications,
+  initialDiscounts,
   initialCourses
 }: AdminFeeDashboardProps) {
   const [summary, setSummary] = useState<FeeFinancialSummary>(initialSummary)
@@ -67,7 +76,10 @@ export function AdminFeeDashboard({
   const [categories, setCategories] = useState<FeeCategory[]>(initialCategories)
   const [payments, setPayments] = useState<FeePayment[]>(initialPayments)
   const [notifications, setNotifications] = useState<FeeNotificationLog[]>(initialNotifications)
+  const [discounts, setDiscounts] = useState<FeeDiscount[]>(initialDiscounts || [])
 
+  // Directory Sync State
+  const [isSyncingDirectory, setIsSyncingDirectory] = useState(false)
 
   // Tab State
   const [activeTab, setActiveTab] = useState<'profiles' | 'structures' | 'defaulters' | 'transactions' | 'reports'>('profiles')
@@ -87,6 +99,9 @@ export function AdminFeeDashboard({
   const [editingStructure, setEditingStructure] = useState<FeeStructure | null>(null)
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false)
 
+  const [managingStudent, setManagingStudent] = useState<StudentFeeProfile | null>(null)
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
+
   // Notification feedback state
   const [reminderStatus, setReminderStatus] = useState<string>('')
 
@@ -98,39 +113,48 @@ export function AdminFeeDashboard({
     }).format(amount)
   }
 
-  // Filtered student profiles
-  const filteredProfiles = profiles.filter(p => {
-    const matchesSearch =
-      p.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.rollNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.email.toLowerCase().includes(searchQuery.toLowerCase())
+  // Deduplicate and filter student profiles
+  const filteredProfiles = useMemo(() => {
+    const seen = new Set<string>()
+    return profiles.filter(p => {
+      const key = p.studentId || p.id
+      if (seen.has(key)) return false
+      seen.add(key)
 
-    const matchesStatus = statusFilter === 'all' || p.status === statusFilter
-    const matchesCourse = courseFilter === 'all' || p.courseId === courseFilter
+      const matchesSearch =
+        p.studentName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.rollNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.email.toLowerCase().includes(searchQuery.toLowerCase())
 
-    return matchesSearch && matchesStatus && matchesCourse
-  })
+      const matchesStatus = statusFilter === 'all' || p.status === statusFilter
+      const matchesCourse = courseFilter === 'all' || p.courseId === courseFilter
 
-  // Defaulters list (< 100% and past due)
-  const defaulters = profiles.filter(p => p.status === 'overdue' || (p.dueFee > 0 && p.lateFineAccrued > 0))
+      return matchesSearch && matchesStatus && matchesCourse
+    })
+  }, [profiles, searchQuery, statusFilter, courseFilter])
 
-  // Dynamically derive courses from profiles and structures
-  const courseMap = new Map<string, string>()
-  profiles.forEach(p => courseMap.set(p.courseId, p.courseName))
-  structures.forEach(s => courseMap.set(s.courseId, s.courseName))
-  const availableCourses = Array.from(courseMap.entries())
+  // Defaulters list (< 100% and past due, deduplicated)
+  const defaulters = useMemo(() => {
+    const seen = new Set<string>()
+    return profiles.filter(p => {
+      const key = p.studentId || p.id
+      if (seen.has(key)) return false
+      seen.add(key)
+      return p.status === 'overdue' || (p.dueFee > 0 && p.lateFineAccrued > 0)
+    })
+  }, [profiles])
+
+  // Strictly courses available in Course Management
   const courseOptionsForModal = useMemo(() => {
+    if (!initialCourses || initialCourses.length === 0) return []
     const list: Array<{ id: string; title: string; category?: string; price?: number }> = []
-    if (initialCourses) {
-      initialCourses.forEach(c => list.push({ id: c.id, title: c.title, category: c.category, price: c.price }))
-    }
-    availableCourses.forEach(([id, title]) => {
-      if (!list.some(c => c.id === id || c.title.toLowerCase() === title.toLowerCase())) {
-        list.push({ id, title })
+    initialCourses.forEach(c => {
+      if (!list.some(existing => existing.id === c.id || existing.title.trim().toLowerCase() === c.title.trim().toLowerCase())) {
+        list.push({ id: c.id, title: c.title, category: c.category, price: c.price })
       }
     })
     return list
-  }, [availableCourses, initialCourses])
+  }, [initialCourses])
 
   // Handlers
   const handleOpenCollect = (profile: StudentFeeProfile) => {
@@ -174,6 +198,24 @@ export function AdminFeeDashboard({
       setTimeout(() => setReminderStatus(''), 4000)
     } catch (err: any) {
       alert(err.message || 'Failed to send reminder.')
+    }
+  }
+
+  const handleSyncDirectory = async () => {
+    try {
+      setIsSyncingDirectory(true)
+      const res = await syncStudentsFromDirectory()
+      setProfiles(res.profiles)
+      setReminderStatus(
+        res.newlyDetectedCount > 0
+          ? `Auto-detected and synced ${res.newlyDetectedCount} new students from Student Directory (${res.syncedCount} total active).`
+          : `Student Directory synchronized. All ${res.syncedCount} registered students up to date.`
+      )
+      setTimeout(() => setReminderStatus(''), 4000)
+    } catch (err: any) {
+      alert(err.message || 'Failed to sync with Student Directory.')
+    } finally {
+      setIsSyncingDirectory(false)
     }
   }
 
@@ -233,7 +275,19 @@ export function AdminFeeDashboard({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={handleSyncDirectory}
+            disabled={isSyncingDirectory}
+            className="px-3 py-2 text-xs font-semibold text-foreground bg-card hover:bg-muted border border-border rounded-xl transition-all flex items-center gap-1.5 shadow-xs"
+            title="Auto-detect & synchronize student accounts from Student Directory"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-primary ${isSyncingDirectory ? 'animate-spin' : ''}`} />
+            <span>Sync Directory</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-primary/10 text-primary">
+              {profiles.length}
+            </span>
+          </button>
           <button
             onClick={handleExportCSV}
             className="px-3 py-2 text-xs font-medium text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-colors flex items-center gap-1.5"
@@ -429,8 +483,8 @@ export function AdminFeeDashboard({
                 className="px-3 py-2 text-xs bg-background border border-border rounded-xl focus:outline-none"
               >
                 <option value="all">All Courses</option>
-                {availableCourses.map(([cid, cname]) => (
-                  <option key={cid} value={cid}>{cname}</option>
+                {courseOptionsForModal.map(c => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
                 ))}
               </select>
             </div>
@@ -461,7 +515,7 @@ export function AdminFeeDashboard({
                   ) : filteredProfiles.map(p => {
                     const isFullyPaid = p.status === 'paid'
                     return (
-                      <tr key={p.id} className="hover:bg-muted/20 transition-colors">
+                      <tr key={p.studentId || p.id} className="hover:bg-muted/20 transition-colors">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
                             <img
@@ -470,8 +524,16 @@ export function AdminFeeDashboard({
                               className="w-8 h-8 rounded-full object-cover border border-border"
                             />
                             <div>
-                              <span className="font-semibold text-foreground block">{p.studentName}</span>
-                              <span className="text-[11px] text-muted-foreground font-mono">{p.rollNumber}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-foreground block">{p.studentName}</span>
+                                {p.isAutoDetected && (
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20 inline-flex items-center gap-0.5">
+                                    <Sparkles className="w-2.5 h-2.5" />
+                                    Auto-Detected
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-muted-foreground font-mono">{p.rollNumber} • {p.email}</span>
                             </div>
                           </div>
                         </td>
@@ -516,7 +578,18 @@ export function AdminFeeDashboard({
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => {
+                                setManagingStudent(p)
+                                setIsAssignModalOpen(true)
+                              }}
+                              title="Assign / Edit Fee Structure & Scholarships"
+                              className="px-2.5 py-1.5 text-xs font-semibold text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-colors flex items-center gap-1 border border-border/60"
+                            >
+                              <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span className="hidden xl:inline">Structure</span>
+                            </button>
                             {!isFullyPaid && (
                               <button
                                 onClick={() => handleOpenCollect(p)}
@@ -594,7 +667,7 @@ export function AdminFeeDashboard({
                   const overdueInst = d.installments.find(i => i.status === 'overdue')
                   const totalPayable = d.dueFee + d.lateFineAccrued
                   return (
-                    <tr key={d.id} className="hover:bg-muted/20 transition-colors">
+                    <tr key={d.studentId || d.id} className="hover:bg-muted/20 transition-colors">
                       <td className="py-3 px-4">
                         <span className="font-semibold text-foreground block">{d.studentName}</span>
                         <span className="text-[11px] text-muted-foreground font-mono">{d.rollNumber} • {d.email}</span>
@@ -918,6 +991,20 @@ export function AdminFeeDashboard({
           } else {
             setStructures([saved, ...structures])
           }
+        }}
+      />
+      {/* 4. Assign Fee Structure Modal */}
+      <AssignFeeStructureModal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        studentProfile={managingStudent}
+        structures={structures}
+        discounts={discounts}
+        courses={courseOptionsForModal}
+        onSuccess={updatedProfile => {
+          setProfiles(profiles.map(p => (p.studentId === updatedProfile.studentId ? updatedProfile : p)))
+          setReminderStatus(`Fee structure assigned to ${updatedProfile.studentName}`)
+          setTimeout(() => setReminderStatus(''), 4000)
         }}
       />
     </div>

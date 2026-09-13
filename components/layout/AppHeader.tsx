@@ -2,17 +2,19 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import {
   PanelLeft,
   Search,
+  Mail,
   Bell,
-  Check,
-  Flame,
+  Globe,
+  ChevronDown,
   User,
-  LogOut,
-  ExternalLink
+  LogOut
 } from 'lucide-react'
 
 import { NotificationBellPopover } from '@/components/notifications/NotificationBellPopover'
@@ -23,9 +25,49 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ onToggleSidebar, onToggleMobileMenu }: AppHeaderProps) {
-  const { user, role, switchRole, logout } = useAuth()
+  const pathname = usePathname()
+  const { user, role, logout } = useAuth()
+  const { settings } = usePlatformSettings()
   const [profileOpen, setProfileOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
+
+  // Dynamically determine page title based on authentic route and admin customizations
+  const getHeaderTitle = () => {
+    // 1. Direct exact match in customized nav labels
+    if (settings.navLabels?.[pathname]) {
+      return settings.navLabels[pathname]
+    }
+
+    // 2. Base portal routes
+    if (pathname === '/admin' || pathname === '/teacher' || pathname === '/student') {
+      return settings.navLabels?.[pathname] || 'Dashboard'
+    }
+
+    // 3. Match longest route prefix from customized navLabels
+    const matchingKey = Object.keys(settings.navLabels || {})
+      .filter((route) => route !== '/admin' && route !== '/teacher' && route !== '/student' && pathname.startsWith(route))
+      .sort((a, b) => b.length - a.length)[0]
+    
+    if (matchingKey && settings.navLabels?.[matchingKey]) {
+      return settings.navLabels[matchingKey]
+    }
+
+    if (pathname.includes('/analytics')) return 'Platform Analytics'
+    if (pathname.includes('/reports')) return 'System Reports'
+    if (pathname.includes('/attendance')) return 'Attendance Management'
+    if (pathname.includes('/students')) return 'Student Directory'
+    if (pathname.includes('/teachers')) return 'Teachers Pipeline'
+    if (pathname.includes('/users')) return 'User Management'
+    if (pathname.includes('/fees')) return 'Fee Management'
+    if (pathname.includes('/courses')) return 'Course Management'
+    if (pathname.includes('/shorts')) return 'Shorts Studio'
+    if (pathname.includes('/chat')) return 'Chat & Moderation'
+    if (pathname.includes('/notifications')) return 'Notice & Notifications'
+    if (pathname.includes('/settings')) return 'Platform Settings'
+    if (pathname.includes('/profile')) return 'Profile'
+    if (pathname.includes('/my-courses')) return 'My Learning'
+    return 'Dashboard'
+  }
 
   // Automatically close profile popover when clicking anywhere outside or pressing Escape
   useEffect(() => {
@@ -53,90 +95,126 @@ export function AppHeader({ onToggleSidebar, onToggleMobileMenu }: AppHeaderProp
   }, [profileOpen])
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      {/* Left: Sidebar Toggle */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Desktop Sidebar Toggle (Laptops / Desktops) */}
+    <header className="sticky top-0 z-30 flex h-20 w-full items-center justify-between border-b border-border/70 bg-card/95 px-6 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+      {/* Left: Sidebar Toggle & Page Title */}
+      <div className="flex items-center gap-4">
+        {/* Desktop Sidebar Toggle */}
         <button
           onClick={onToggleSidebar}
           type="button"
           aria-label="Toggle Sidebar"
-          className="hidden lg:inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          className="hidden lg:inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
         >
           <PanelLeft className="h-4 w-4" />
         </button>
 
-        {/* Mobile & Tablet Hamburger Toggle */}
+        {/* Mobile Hamburger Toggle */}
         <button
           onClick={onToggleMobileMenu}
           type="button"
           aria-label="Open Navigation"
-          className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-md border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground transition-colors cursor-pointer"
+          className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
         >
           <PanelLeft className="h-4 w-4" />
         </button>
+
+        {/* Page Title (Matching 'Dashboard' in Dribbble design) */}
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+          {getHeaderTitle()}
+        </h1>
       </div>
 
-      {/* Right Controls: Command Search, Notifications, ThemeToggle, Profile Dropdown */}
-      <div className="flex items-center gap-2 sm:gap-3">
-        {/* Command Search Bar (Desktop) */}
-        <div className="relative hidden lg:block w-56">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+      {/* Center / Search: Rounded Search Pill */}
+      <div className="hidden md:flex items-center flex-1 max-w-sm mx-6">
+        <div className="relative w-full">
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-muted-foreground" />
           <input
             type="search"
-            placeholder="Search courses... ⌘K"
-            className="h-9 w-full rounded-md border border-border bg-muted/40 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:bg-background transition-colors"
+            placeholder="Search"
+            className="h-10 w-full rounded-2xl border border-border/60 bg-muted/40 pl-10 pr-4 text-xs font-medium text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:bg-card transition-all"
           />
         </div>
+      </div>
 
-        {/* Explore Shorts Button */}
-        <Link
-          href="/shorts"
-          className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 transition-colors"
+      {/* Right Controls: Language (EN), Mail, Bell, Profile Card */}
+      <div className="flex items-center gap-3">
+        {/* Language Selector (EN) */}
+        <button
+          type="button"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-foreground hover:bg-muted/60 transition-colors"
         >
-          <Flame className="h-3.5 w-3.5 fill-rose-500" />
-          <span>Shorts</span>
-        </Link>
+          <Globe className="h-4 w-4 text-muted-foreground" />
+          <span>EN</span>
+          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+        </button>
 
-        {/* Notifications Popover */}
+        {/* Mail Icon Button with Badge */}
+        <button
+          type="button"
+          aria-label="Messages"
+          className="relative h-9 w-9 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+        >
+          <Mail className="h-4 w-4" />
+          <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-card" />
+        </button>
+
+        {/* Notification Bell (Popover) */}
         <NotificationBellPopover />
 
         {/* Theme Toggle Button */}
         <ThemeToggle />
 
-        {/* User Profile Menu */}
-        <div className="relative" ref={profileMenuRef}>
+        {/* User Profile Card Pill (matching Dribbble screenshot) */}
+        <div className="relative ml-1" ref={profileMenuRef}>
           <button
             onClick={() => setProfileOpen(!profileOpen)}
             type="button"
-            className="flex items-center gap-2 rounded-full p-0.5 ring-1 ring-border hover:ring-ring transition-all cursor-pointer"
+            className="flex items-center gap-3 p-1 rounded-2xl hover:bg-muted/60 transition-all cursor-pointer"
           >
-            <div className="h-8 w-8 rounded-full overflow-hidden bg-secondary flex items-center justify-center text-xs font-bold uppercase text-secondary-foreground">
+            {/* User Avatar */}
+            <div className="h-10 w-10 rounded-full overflow-hidden bg-blue-100 dark:bg-blue-950 flex items-center justify-center text-xs font-bold uppercase text-blue-600 ring-2 ring-blue-600/20 shadow-xs shrink-0">
               {user?.avatar_url ? (
                 <img src={user.avatar_url} alt={user.full_name || 'User'} className="h-full w-full object-cover" />
               ) : (
-                <span>{user?.full_name?.charAt(0) || 'U'}</span>
+                <img
+                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+                  alt="Carla Peter"
+                  className="h-full w-full object-cover"
+                />
               )}
             </div>
+
+            {/* Name and Role Subtitle */}
+            <div className="hidden lg:flex flex-col text-left min-w-0">
+              <span className="text-xs font-bold text-foreground leading-tight truncate">
+                {user?.full_name || 'User Profile'}
+              </span>
+              <span className="text-[11px] text-muted-foreground capitalize leading-tight truncate">
+                {role === 'admin' ? 'Administrator' : role === 'teacher' ? 'Instructor' : 'Student'}
+              </span>
+            </div>
+
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground hidden lg:block ml-0.5" />
           </button>
 
+          {/* Profile Popover Menu */}
           {profileOpen && (
-            <div className="absolute right-0 mt-2 w-56 rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-xl z-50 animate-in fade-in-0 zoom-in-95">
-              <div className="px-2 py-1.5 border-b border-border mb-1">
-                <p className="text-xs font-semibold leading-none truncate text-foreground">
-                  {user?.full_name || 'User Profile'}
+            <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-2xl z-50 animate-in fade-in-0 zoom-in-95">
+              <div className="px-3 py-2 border-b border-border/60 mb-1">
+                <p className="text-xs font-bold leading-none truncate text-foreground">
+                  {user?.full_name || 'Active User'}
                 </p>
-                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{user?.email}</p>
-                <span className="inline-block mt-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-primary/10 text-primary">
-                  {role}
+                <p className="text-[11px] text-muted-foreground truncate mt-1">{user?.email || 'user@example.com'}</p>
+                <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-50 dark:bg-blue-950 text-blue-600">
+                  {role === 'admin' ? 'Administrator' : role}
                 </span>
               </div>
 
-              <div className="py-1 border-t border-border">
+              <div className="py-1">
                 <Link
                   href={role === 'teacher' ? '/teacher/profile' : role === 'admin' ? '/admin/settings' : '/student/profile'}
                   onClick={() => setProfileOpen(false)}
-                  className="flex items-center gap-2 px-2 py-1.5 text-xs rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 >
                   <User className="h-3.5 w-3.5" />
                   <span>Profile & Settings</span>
@@ -148,7 +226,7 @@ export function AppHeader({ onToggleSidebar, onToggleMobileMenu }: AppHeaderProp
                     setProfileOpen(false)
                     await logout()
                   }}
-                  className="w-full flex items-center gap-2 px-2 py-1.5 text-xs rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors font-medium text-left cursor-pointer"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors font-semibold text-left cursor-pointer"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                   <span>Sign Out</span>

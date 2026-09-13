@@ -2,12 +2,14 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Search } from 'lucide-react'
-
-const CATEGORIES = ['All', 'Programming', 'Physics', 'Chemistry', 'Mathematics', 'General']
+import { usePlatformSettings, DEFAULT_COURSE_CATEGORIES } from '@/contexts/PlatformSettingsContext'
 
 export function CourseFilter({ initialCategory = 'All', initialSearch = '' }: { initialCategory?: string; initialSearch?: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { settings } = usePlatformSettings()
+
+  const categories = ['All', ...(settings.courseCategories && settings.courseCategories.length > 0 ? settings.courseCategories : DEFAULT_COURSE_CATEGORIES)]
 
   const currentCategory = searchParams.get('category') || initialCategory
   const currentSearch = searchParams.get('search') || initialSearch
@@ -43,7 +45,7 @@ export function CourseFilter({ initialCategory = 'All', initialSearch = '' }: { 
 
         {/* Category Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
-          {CATEGORIES.map((category) => {
+          {categories.map((category) => {
             const isSelected = currentCategory === category
             return (
               <button

@@ -9,6 +9,9 @@ import { Course, CourseWithCurriculum, ChapterWithLectures } from '@/types/datab
 import { CourseFormData } from '@/types/course'
 
 export async function getCourses(category?: string, search?: string): Promise<Course[]> {
+  const currentUser = await getCurrentUser()
+  const targetStudentId = currentUser?.role === 'student' ? currentUser.id : undefined
+
   try {
     const supabase = createAdminClient()
     let query = supabase.from('courses').select('*').eq('status', 'published')
@@ -26,9 +29,22 @@ export async function getCourses(category?: string, search?: string): Promise<Co
       const courseIds = rawCourses.map((c) => c.id)
       const teacherIds = [...new Set(rawCourses.map((c) => c.teacher_id).filter(Boolean))]
 
-      const [teachersRes, chaptersRes] = await Promise.all([
+      let enrolledCourseIds = new Set<string>()
+      if (targetStudentId) {
+        const { data: userEnrs } = await supabase
+          .from('enrollments')
+          .select('course_id')
+          .eq('student_id', targetStudentId)
+          .in('course_id', courseIds)
+        if (userEnrs) {
+          enrolledCourseIds = new Set(userEnrs.map((e) => e.course_id))
+        }
+      }
+
+      const [teachersRes, chaptersRes, totalEnrsRes] = await Promise.all([
         teacherIds.length > 0 ? supabase.from('Profile').select('*').in('id', teacherIds) : Promise.resolve({ data: [] }),
-        supabase.from('chapters').select('id, course_id').in('course_id', courseIds)
+        supabase.from('chapters').select('id, course_id').in('course_id', courseIds),
+        supabase.from('enrollments').select('course_id').in('course_id', courseIds)
       ])
 
       const chIds = (chaptersRes.data || []).map((ch) => ch.id)
@@ -41,13 +57,16 @@ export async function getCourses(category?: string, search?: string): Promise<Co
         const chs = (chaptersRes.data || []).filter((ch) => ch.course_id === c.id)
         const chIdsSet = new Set(chs.map((ch) => ch.id))
         const lectureCount = (lecs || []).filter((l) => chIdsSet.has(l.chapter_id)).length
+        const totalEnrolled = (totalEnrsRes.data || []).filter((e) => e.course_id === c.id).length
+        const isEnrolled = targetStudentId ? enrolledCourseIds.has(c.id) : false
 
         return {
           ...c,
           thumbnail_url: formatImageUrl(c.thumbnail_url),
           teacher: t || undefined,
+          is_enrolled: isEnrolled,
           _count: {
-            enrollments: 0,
+            enrollments: totalEnrolled,
             lectures: lectureCount
           }
         }
@@ -57,7 +76,7 @@ export async function getCourses(category?: string, search?: string): Promise<Co
     console.warn('Supabase getCourses fallback to local store:', err)
   }
 
-  return dataStore.getPublishedCourses(category, search).map((c) => ({
+  return dataStore.getPublishedCourses(category, search, targetStudentId).map((c) => ({
     ...c,
     thumbnail_url: formatImageUrl(c.thumbnail_url)
   }))
@@ -485,6 +504,87 @@ export async function enrollCourse(courseId: string, studentId?: string) {
   return { success: true, enrollment }
 }
 
+export async function enrollMultipleCourses(courseIds: string[]) {
+  const currentUser = await getCurrentUser()
+  if (!currentUser) {
+    return { success: false, error: 'Please log in to enroll in courses.' }
+  }
+  const targetStudentId = currentUser.id
+
+  if (!courseIds || courseIds.length === 0) {
+    return { success: false, error: 'No courses selected.' }
+  }
+
+  try {
+    const supabase = createAdminClient()
+    const records = courseIds.map((cId) => ({
+      student_id: targetStudentId,
+      course_id: cId,
+      enrolled_at: new Date().toISOString()
+    }))
+    await supabase.from('enrollments').upsert(records, { onConflict: 'student_id,course_id' })
+  } catch (err) {
+    console.warn('Supabase enrollMultipleCourses fallback:', err)
+  }
+
+  const results = dataStore.enrollMultipleCourses(targetStudentId, courseIds)
+  revalidatePath('/student/courses')
+  revalidatePath('/student/my-courses')
+  revalidatePath('/student')
+  return { success: true, count: results.length }
+}
+
+export async function unenrollCourse(courseId: string) {
+  const currentUser = await getCurrentUser()
+  if (!currentUser) {
+    return { success: false, error: 'Please log in to manage enrollments.' }
+  }
+  const targetStudentId = currentUser.id
+
+  try {
+    const supabase = createAdminClient()
+    await supabase
+      .from('enrollments')
+      .delete()
+      .eq('student_id', targetStudentId)
+      .eq('course_id', courseId)
+  } catch (err) {
+    console.warn('Supabase unenrollCourse fallback:', err)
+  }
+
+  dataStore.unenrollStudent(targetStudentId, courseId)
+  revalidatePath(`/student/courses/${courseId}`)
+  revalidatePath('/student/courses')
+  revalidatePath('/student/my-courses')
+  revalidatePath('/student')
+  return { success: true }
+}
+
+export async function unenrollMultipleCourses(courseIds: string[]) {
+  const currentUser = await getCurrentUser()
+  if (!currentUser) {
+    return { success: false, error: 'Please log in to manage enrollments.' }
+  }
+  const targetStudentId = currentUser.id
+
+  try {
+    const supabase = createAdminClient()
+    await supabase
+      .from('enrollments')
+      .delete()
+      .eq('student_id', targetStudentId)
+      .in('course_id', courseIds)
+  } catch (err) {
+    console.warn('Supabase unenrollMultipleCourses fallback:', err)
+  }
+
+  dataStore.unenrollMultipleCourses(targetStudentId, courseIds)
+  revalidatePath('/student/courses')
+  revalidatePath('/student/my-courses')
+  revalidatePath('/student')
+  return { success: true }
+}
+
 export async function getStudentEnrolledCourses(studentId?: string): Promise<CourseWithCurriculum[]> {
   const currentUser = await getCurrentUser()
   if (!currentUser) return []
@@ -509,3 +609,4 @@ export async function getStudentEnrolledCourses(studentId?: string): Promise<Cou
 
   return dataStore.getStudentEnrollments(targetStudentId)
 }
+

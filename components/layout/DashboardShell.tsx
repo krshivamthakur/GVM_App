@@ -4,9 +4,11 @@ import React, { useState, useEffect } from 'react'
 import { AppSidebar } from './AppSidebar'
 import { AppHeader } from './AppHeader'
 import { BottomNavigationBar } from './BottomNavigationBar'
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext'
 import { X, GraduationCap } from 'lucide-react'
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
+  const { settings } = usePlatformSettings()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -44,12 +46,16 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className="relative flex w-72 flex-col bg-sidebar border-r border-border p-4 shadow-2xl z-50 animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between pb-3.5 border-b border-border">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold shadow-xs">
-                  <GraduationCap className="h-4 w-4" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white dark:bg-zinc-900 border border-border/80 shadow-xs overflow-hidden p-1">
+                  <img
+                    src={settings.logoUrl || '/gvm.png'}
+                    alt={settings.logoText || settings.platformName || 'Logo'}
+                    className="h-full w-full object-contain"
+                  />
                 </div>
                 <div className="flex flex-col">
-                  <span className="font-bold text-sm tracking-tight text-foreground leading-tight">
-                    GVM EduLMS
+                  <span className="font-bold text-sm tracking-tight text-foreground leading-tight truncate max-w-[150px]">
+                    {settings.platformName || 'GVM EduLMS'}
                   </span>
                   <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
                     Portal Navigation

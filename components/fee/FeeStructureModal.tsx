@@ -46,20 +46,6 @@ interface FeeStructureModalProps {
   onCategoriesUpdated?: (categories: FeeCategory[]) => void
 }
 
-const DEFAULT_COURSES: CourseOption[] = [
-  { id: 'crs_java_master', title: 'Java Programming Masterclass', category: 'Certification', price: 35000 },
-  { id: 'crs_btech_cs', title: 'B.Tech Computer Science & Engineering', category: 'Degree', price: 95000 },
-  { id: 'crs_mca', title: 'Master of Computer Applications (MCA)', category: 'Postgraduate', price: 75000 },
-  { id: 'crs_bca', title: 'Bachelor of Computer Applications (BCA)', category: 'Degree', price: 60000 },
-  { id: 'crs_mba', title: 'Master of Business Administration (MBA)', category: 'Postgraduate', price: 110000 },
-  { id: 'crs_bba', title: 'Bachelor of Business Administration (BBA)', category: 'Degree', price: 55000 },
-  { id: 'crs_fullstack', title: 'Full-Stack Web Development Bootcamp', category: 'Certification', price: 45000 },
-  { id: 'crs_datasci', title: 'Data Science & Machine Learning', category: 'Certification', price: 50000 },
-  { id: 'crs_cyber', title: 'Cybersecurity & Ethical Hacking', category: 'Certification', price: 40000 },
-  { id: 'crs_python_ai', title: 'Python & AI Foundations', category: 'Certification', price: 30000 },
-  { id: 'crs_diploma_it', title: 'Diploma in Information Technology', category: 'Diploma', price: 35000 },
-]
-
 const CATEGORY_COLORS = [
   'bg-emerald-500 text-emerald-100',
   'bg-blue-500 text-blue-100',
@@ -135,35 +121,26 @@ export function FeeStructureModal({
     setCategories(propCategories)
   }, [propCategories])
 
-  // Combine provided courses with defaults
+  // Only courses available from Course Management
   const availableCourses = useMemo(() => {
-    const merged = [...(propCourses || [])]
-    DEFAULT_COURSES.forEach(dc => {
-      if (!merged.some(c => c.title.toLowerCase() === dc.title.toLowerCase())) {
-        merged.push(dc)
-      }
-    })
-    if (editingStructure?.courseName && !merged.some(c => c.title.toLowerCase() === editingStructure.courseName.toLowerCase())) {
-      merged.unshift({
-        id: editingStructure.courseId || `crs_${Date.now()}`,
-        title: editingStructure.courseName,
-        category: 'Custom'
+    const list: CourseOption[] = []
+    if (propCourses && propCourses.length > 0) {
+      propCourses.forEach(c => {
+        if (!list.some(existing => existing.id === c.id || existing.title.trim().toLowerCase() === c.title.trim().toLowerCase())) {
+          list.push(c)
+        }
       })
     }
-    return merged
+    // If editing an existing structure whose course is not in the list, preserve it
+    if (editingStructure?.courseName && !list.some(c => c.id === editingStructure.courseId || c.title.toLowerCase() === editingStructure.courseName.toLowerCase())) {
+      list.unshift({
+        id: editingStructure.courseId || `crs_${Date.now()}`,
+        title: editingStructure.courseName,
+        category: 'Existing'
+      })
+    }
+    return list
   }, [propCourses, editingStructure])
-
-  const publishedGroup = useMemo(() => {
-    return availableCourses.filter(c => c.category === 'Published' || (!['Degree', 'Postgraduate', 'Diploma', 'Certification', 'Custom'].includes(c.category || '')))
-  }, [availableCourses])
-
-  const degreeGroup = useMemo(() => {
-    return availableCourses.filter(c => ['Degree', 'Postgraduate', 'Diploma'].includes(c.category || ''))
-  }, [availableCourses])
-
-  const certGroup = useMemo(() => {
-    return availableCourses.filter(c => c.category === 'Certification')
-  }, [availableCourses])
 
   // Current year calculations for dynamic chips
   const currentYear = new Date().getFullYear()
@@ -174,10 +151,10 @@ export function FeeStructureModal({
     `${currentYear + 2}-${currentYear + 3}`,
   ]
 
-  // Default initial course
+  // Default initial course from Course Management
   const defaultInitialCourse = editingStructure?.courseName
     ? { id: editingStructure.courseId || '', title: editingStructure.courseName }
-    : DEFAULT_COURSES[0]
+    : (availableCourses[0] || { id: '', title: '' })
 
   // Form states
   const [isCustomCourse, setIsCustomCourse] = useState(false)
@@ -557,8 +534,8 @@ export function FeeStructureModal({
                       type="button"
                       onClick={() => {
                         setIsCustomCourse(false)
-                        setCourseId(DEFAULT_COURSES[0].id)
-                        setCourseName(DEFAULT_COURSES[0].title)
+                        setCourseId(availableCourses[0]?.id || '')
+                        setCourseName(availableCourses[0]?.title || '')
                       }}
                       className="text-[10px] text-primary hover:underline font-medium"
                     >
@@ -592,44 +569,13 @@ export function FeeStructureModal({
                     }}
                     className="w-full px-3 py-2 pr-9 text-xs bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none font-medium cursor-pointer shadow-xs"
                   >
-                    <option value="" disabled>-- Select Course / Program --</option>
-
-                    {/* LMS / Published Courses */}
-                    {publishedGroup.length > 0 && (
-                      <optgroup label="Published Courses & LMS Programs">
-                        {publishedGroup.map(course => (
-                          <option key={course.id} value={course.id}>
-                            {course.title} {course.price ? `(₹${course.price.toLocaleString('en-IN')})` : ''}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-
-                    {/* Degree Programs */}
-                    {degreeGroup.length > 0 && (
-                      <optgroup label="Degrees & University Programs">
-                        {degreeGroup.map(course => (
-                          <option key={course.id} value={course.id}>
-                            {course.title}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-
-                    {/* Certifications & Bootcamps */}
-                    {certGroup.length > 0 && (
-                      <optgroup label="Certifications & Bootcamps">
-                        {certGroup.map(course => (
-                          <option key={course.id} value={course.id}>
-                            {course.title}
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-
-                    <optgroup label="Custom / Other">
-                      <option value="__custom__">➕ Type Custom Course / Program...</option>
-                    </optgroup>
+                    <option value="" disabled>-- Select Course from Courses Management --</option>
+                    {availableCourses.map(course => (
+                      <option key={course.id} value={course.id}>
+                        {course.title} {course.price ? `(₹${course.price.toLocaleString('en-IN')})` : ''} {course.category ? `• ${course.category}` : ''}
+                      </option>
+                    ))}
+                    <option value="__custom__">➕ Type Custom Course / Program...</option>
                   </select>
                   <ChevronDown className="w-4 h-4 text-muted-foreground absolute right-2.5 top-2.5 pointer-events-none" />
                 </div>

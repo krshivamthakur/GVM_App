@@ -84,6 +84,8 @@ export interface StudentFeeProfile {
   status: FeePaymentStatus
   lastPaymentDate?: string
   installments: FeeInstallment[]
+  isAutoDetected?: boolean
+  syncedAt?: string
 }
 
 export interface FeePayment {

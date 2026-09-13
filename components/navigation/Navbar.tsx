@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext'
 import { 
   GraduationCap, 
   BookOpen, 
@@ -23,6 +24,7 @@ import { NotificationBellPopover } from '@/components/notifications/Notification
 export function Navbar() {
   const pathname = usePathname()
   const { user, role, isStudent, isTeacher, isAdmin, logout } = useAuth()
+  const { settings } = usePlatformSettings()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -58,12 +60,16 @@ export function Navbar() {
         {/* Brand */}
         <div className="flex items-center gap-6">
           <Link href={getPortalHome()} className="flex items-center gap-2.5 group">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-              <GraduationCap className="h-5 w-5" />
+            <div className="h-9 w-9 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center p-1 shadow-xs group-hover:scale-105 transition-transform overflow-hidden">
+              <img
+                src={settings.logoUrl || '/gvm.png'}
+                alt={settings.logoText || settings.platformName || 'Logo'}
+                className="h-full w-full object-contain"
+              />
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-lg leading-tight tracking-tight text-zinc-900 dark:text-zinc-50">
-                Education<span className="text-indigo-600 dark:text-indigo-400">LMS</span>
+                {settings.platformName || 'Education LMS'}
               </span>
               <span className="text-[10px] uppercase font-semibold tracking-widest text-zinc-500 dark:text-zinc-400">
                 {role} portal

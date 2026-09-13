@@ -7,14 +7,18 @@ import { createCourse } from '@/actions/course-actions'
 import { CourseStatus } from '@/types/database'
 import { formatImageUrl, DEFAULT_FALLBACK_THUMBNAIL } from '@/lib/utils'
 import { PlusCircle, ArrowLeft, UploadCloud, ImageIcon, Sparkles } from 'lucide-react'
-
-const CATEGORIES = ['Programming', 'Physics', 'Chemistry', 'Mathematics', 'Biology', 'General']
+import { usePlatformSettings, DEFAULT_COURSE_CATEGORIES } from '@/contexts/PlatformSettingsContext'
 
 export default function CreateCoursePage() {
   const router = useRouter()
+  const { settings } = usePlatformSettings()
+  const categories = settings.courseCategories && settings.courseCategories.length > 0
+    ? settings.courseCategories
+    : DEFAULT_COURSE_CATEGORIES
+
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('Programming')
+  const [category, setCategory] = useState(categories[0] || 'Programming')
   const [thumbnailUrl, setThumbnailUrl] = useState('https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800&auto=format&fit=crop&q=80')
   const [status, setStatus] = useState<CourseStatus>('draft')
   const [loading, setLoading] = useState(false)
@@ -103,7 +107,7 @@ export default function CreateCoursePage() {
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
-                {CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>

@@ -7,18 +7,21 @@ import { getCourseById, updateCourse, deleteCourse } from '@/actions/course-acti
 import { CourseStatus, CourseWithCurriculum } from '@/types/database'
 import { formatImageUrl, DEFAULT_FALLBACK_THUMBNAIL } from '@/lib/utils'
 import { ArrowLeft, Trash2, Save } from 'lucide-react'
-
-const CATEGORIES = ['Programming', 'Physics', 'Chemistry', 'Mathematics', 'Biology', 'General']
+import { usePlatformSettings, DEFAULT_COURSE_CATEGORIES } from '@/contexts/PlatformSettingsContext'
 
 export default function EditCoursePage() {
   const router = useRouter()
   const params = useParams()
   const courseId = params?.courseId as string
+  const { settings } = usePlatformSettings()
+  const categories = settings.courseCategories && settings.courseCategories.length > 0
+    ? settings.courseCategories
+    : DEFAULT_COURSE_CATEGORIES
 
   const [course, setCourse] = useState<CourseWithCurriculum | null>(null)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('Programming')
+  const [category, setCategory] = useState(categories[0] || 'Programming')
   const [thumbnailUrl, setThumbnailUrl] = useState('')
   const [status, setStatus] = useState<CourseStatus>('draft')
   const [loading, setLoading] = useState(true)
@@ -133,7 +136,7 @@ export default function EditCoursePage() {
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               >
-                {CATEGORIES.map((cat) => (
+                {categories.map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>

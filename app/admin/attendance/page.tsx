@@ -9,19 +9,23 @@ import {
   getAttendanceRules,
   getLeaveRequests,
   getAuditLog,
+  getTeachersForDropdown,
+  getCoursesForDropdown,
 } from '@/actions/attendance-actions'
 import { AdminAttendanceControl } from '@/components/attendance/AdminAttendanceControl'
 
 export default async function AdminAttendancePage() {
   const admin = await requireRole(['admin'])
 
-  const [classes, sessions, allSummaries, rule, leaveRequests, auditLog] = await Promise.all([
+  const [classes, sessions, allSummaries, rule, leaveRequests, auditLog, teachers, courses] = await Promise.all([
     getAllClasses(),
     getAttendanceSessions(),
     getAllStudentsSummary(),
     getAttendanceRules(),
     getLeaveRequests('admin', admin.id),
     getAuditLog(),
+    getTeachersForDropdown(),
+    getCoursesForDropdown(),
   ])
 
   return (
@@ -53,6 +57,8 @@ export default async function AdminAttendancePage() {
         leaveRequests={leaveRequests}
         adminId={admin.id}
         adminName={admin.full_name || 'Administrator'}
+        teachers={teachers}
+        courses={courses}
       />
     </div>
   )

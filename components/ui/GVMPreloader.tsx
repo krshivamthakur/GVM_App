@@ -2,6 +2,7 @@
 
 import React from 'react'
 import Image from 'next/image'
+import { usePlatformSettings } from '@/contexts/PlatformSettingsContext'
 
 export interface GVMPreloaderProps {
   /** If true, covers entire screen with a backdrop blur and fixed positioning */
@@ -19,10 +20,11 @@ export interface GVMPreloaderProps {
 export function GVMPreloader({
   fullScreen = false,
   size = 'lg',
-  text = 'Loading GVM...',
+  text = 'Loading...',
   subtext = 'Preparing your learning environment',
   className = ''
 }: GVMPreloaderProps) {
+  const { settings } = usePlatformSettings()
   // Dimensions per size variant
   const sizeConfig = {
     sm: {
@@ -110,16 +112,13 @@ export function GVMPreloader({
           </div>
         </div>
 
-        {/* Central Circular GVM Logo */}
+        {/* Central Circular Logo */}
         <div
           className={`relative ${sizeConfig.logoBox} rounded-full overflow-hidden p-1.5 bg-white/95 dark:bg-zinc-900/95 shadow-xl shadow-emerald-950/10 ring-2 ring-emerald-500/30 flex items-center justify-center z-10 transition-transform`}
         >
-          <Image
-            src="/gvm.png"
-            alt="GVM Logo"
-            width={sizeConfig.logoSize}
-            height={sizeConfig.logoSize}
-            priority
+          <img
+            src={settings.logoUrl || '/gvm.png'}
+            alt="Logo"
             className="h-full w-full object-contain rounded-full select-none pointer-events-none drop-shadow-xs"
           />
         </div>

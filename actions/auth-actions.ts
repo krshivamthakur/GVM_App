@@ -7,6 +7,15 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
 import { Profile, UserRole } from '@/types/database'
 
+function withTimeout<T>(promiseLike: PromiseLike<T>, ms = 1500): Promise<T> {
+  return Promise.race([
+    Promise.resolve(promiseLike),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
+    )
+  ])
+}
+
 export async function getCurrentUser(): Promise<Profile | null> {
   try {
     const cookieStore = await cookies()
@@ -16,18 +25,24 @@ export async function getCurrentUser(): Promise<Profile | null> {
       // 1. Try Supabase
       try {
         const supabase = createAdminClient()
-        let { data: profile } = await supabase
-          .from('Profile')
-          .select('*')
-          .eq('id', authUserId)
-          .maybeSingle()
-
-        if (!profile) {
-          const res = await supabase
-            .from('profiles')
+        let { data: profile } = await withTimeout(
+          supabase
+            .from('Profile')
             .select('*')
             .eq('id', authUserId)
-            .maybeSingle()
+            .maybeSingle(),
+          1500
+        )
+
+        if (!profile) {
+          const res = await withTimeout(
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', authUserId)
+              .maybeSingle(),
+            1500
+          )
           profile = res.data
         }
 
@@ -142,7 +157,11 @@ export async function loginUser(email: string, password?: string) {
     const supabase = createAdminClient()
 
     // Query 1: Try 'Profile' table
-    const { data: profiles, error: profileErr } = await supabase.from('Profile').select('*')
+    const { data: profiles, error: profileErr } = await withTimeout(
+      supabase.from('Profile').select('*'),
+      1500
+    ).catch(() => ({ data: null, error: new Error('Timeout') }))
+
     if (!profileErr && profiles && profiles.length > 0) {
       const found = profiles.find(
         (p: Profile) =>
@@ -155,7 +174,11 @@ export async function loginUser(email: string, password?: string) {
 
     // Query 2: Try 'profiles' table if not found yet
     if (!user) {
-      const { data: lowerProfiles, error: lowerErr } = await supabase.from('profiles').select('*')
+      const { data: lowerProfiles, error: lowerErr } = await withTimeout(
+        supabase.from('profiles').select('*'),
+        1500
+      ).catch(() => ({ data: null, error: new Error('Timeout') }))
+
       if (!lowerErr && lowerProfiles && lowerProfiles.length > 0) {
         const found = lowerProfiles.find(
           (p: Profile) =>

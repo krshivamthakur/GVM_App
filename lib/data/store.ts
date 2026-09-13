@@ -135,7 +135,12 @@ export const dataStore = {
       }
     }))
   },
-  getPublishedCourses(category?: string, search?: string): Course[] {
+  getPublishedCourses(category?: string, search?: string, studentId?: string): Course[] {
+    const targetStudentId = studentId || (activeUser.role === 'student' ? activeUser.id : undefined)
+    const enrolledIds = targetStudentId
+      ? new Set(enrollments.filter((e) => e.student_id === targetStudentId).map((e) => e.course_id))
+      : new Set<string>()
+
     let result = this.getAllCourses().filter((c) => c.status === 'published')
     if (category && category !== 'All') {
       result = result.filter((c) => c.category?.toLowerCase() === category.toLowerCase())
@@ -149,7 +154,10 @@ export const dataStore = {
           c.category?.toLowerCase().includes(q)
       )
     }
-    return result
+    return result.map((c) => ({
+      ...c,
+      is_enrolled: enrolledIds.has(c.id)
+    }))
   },
   getCoursesByTeacher(teacherId: string): Course[] {
     return this.getAllCourses().filter((c) => c.teacher_id === teacherId)
@@ -386,11 +394,39 @@ export const dataStore = {
     enrollments.push(newEnrollment)
     return newEnrollment
   },
+  enrollMultipleCourses(studentId: string, courseIds: string[]): Enrollment[] {
+    const targetId = activeUser.role === 'student' ? activeUser.id : studentId
+    const newEnrs: Enrollment[] = []
+    for (const cId of courseIds) {
+      if (!cId) continue
+      const existing = enrollments.find((e) => e.student_id === targetId && e.course_id === cId)
+      if (existing) {
+        newEnrs.push(existing)
+      } else {
+        const enr: Enrollment = {
+          id: `enr-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          student_id: targetId,
+          course_id: cId,
+          enrolled_at: new Date().toISOString()
+        }
+        enrollments.push(enr)
+        newEnrs.push(enr)
+      }
+    }
+    return newEnrs
+  },
   unenrollStudent(studentId: string, courseId: string): boolean {
     const targetId = activeUser.role === 'student' ? activeUser.id : studentId
     const len = enrollments.length
     enrollments = enrollments.filter((e) => !(e.student_id === targetId && e.course_id === courseId))
     return enrollments.length < len
+  },
+  unenrollMultipleCourses(studentId: string, courseIds: string[]): number {
+    const targetId = activeUser.role === 'student' ? activeUser.id : studentId
+    const initialLen = enrollments.length
+    const toRemove = new Set(courseIds)
+    enrollments = enrollments.filter((e) => !(e.student_id === targetId && toRemove.has(e.course_id)))
+    return initialLen - enrollments.length
   },
   getStudentEnrollments(studentId: string): CourseWithCurriculum[] {
     const targetId = activeUser.role === 'student' ? activeUser.id : studentId
@@ -838,4 +874,5 @@ export const dataStore = {
     return { ...notificationPreferences[userId] }
   }
 }
+
 
