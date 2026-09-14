@@ -1,0 +1,176 @@
+import { Resend, CreateEmailOptions } from 'resend'
+
+/**
+ * Resend client instance initialized with RESEND_API_KEY.
+ * If the key is not yet set in environment variables, a warning is logged
+ * upon calling send operations rather than throwing at import time.
+ */
+const apiKey = process.env.RESEND_API_KEY
+
+export const resend = new Resend(apiKey || 're_placeholder_key')
+
+export const DEFAULT_FROM_EMAIL =
+  process.env.RESEND_FROM_EMAIL || 'GVM App <onboarding@resend.dev>'
+
+export interface SendEmailOptions {
+  to: string | string[]
+  subject: string
+  html?: string
+  text?: string
+  react?: React.ReactNode
+  from?: string
+  replyTo?: string | string[]
+  cc?: string | string[]
+  bcc?: string | string[]
+  tags?: Array<{ name: string; value: string }>
+}
+
+export interface SendEmailResponse {
+  success: boolean
+  id?: string
+  error?: string
+}
+
+/**
+ * Helper to send transactional emails via Resend SDK
+ */
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  text,
+  react,
+  from = DEFAULT_FROM_EMAIL,
+  replyTo,
+  cc,
+  bcc,
+  tags,
+}: SendEmailOptions): Promise<SendEmailResponse> {
+  const currentKey = process.env.RESEND_API_KEY
+
+  if (!currentKey || currentKey.startsWith('re_your_resend_api_key')) {
+    const errorMsg =
+      'RESEND_API_KEY is not configured in .env.local. Please add your Resend API key to send emails.'
+    console.warn(`[Resend SDK Warning] ${errorMsg}`)
+    return {
+      success: false,
+      error: errorMsg,
+    }
+  }
+
+  try {
+    const recipientList = Array.isArray(to) ? to : [to]
+
+    // Resend requires at least one render target (html, text, or react)
+    const renderContent = html
+      ? { html, ...(text ? { text } : {}) }
+      : text
+        ? { text }
+        : react
+          ? { react }
+          : { html: '' }
+
+    const payload = {
+      from,
+      to: recipientList,
+      subject,
+      ...renderContent,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(cc ? { cc } : {}),
+      ...(bcc ? { bcc } : {}),
+      ...(tags ? { tags } : {}),
+    } as CreateEmailOptions
+
+    const { data, error } = await resend.emails.send(payload)
+
+    if (error) {
+      console.error('[Resend SDK Error]:', error)
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
+
+    return {
+      success: true,
+      id: data?.id,
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error sending email'
+    console.error('[Resend SDK Exception]:', err)
+    return {
+      success: false,
+      error: message,
+    }
+  }
+}
+
+/**
+ * Standard branded HTML email template for GVM App notifications
+ */
+export function createEmailTemplate({
+  title,
+  previewText,
+  bodyContent,
+  ctaText,
+  ctaUrl,
+  footerText = '© GVM App. All rights reserved.',
+}: {
+  title: string
+  previewText?: string
+  bodyContent: string
+  ctaText?: string
+  ctaUrl?: string
+  footerText?: string
+}): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e2e8f0;">
+  ${previewText ? `<div style="display:none;font-size:1px;color:#0f172a;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${previewText}</div>` : ''}
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#0f172a;width:100%;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#1e293b;border-radius:16px;border:1px solid #334155;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.4);">
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);padding:28px 32px;text-align:left;">
+              <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">GVM App</h1>
+              <p style="margin:4px 0 0 0;font-size:13px;color:#e0e7ff;font-weight:500;">Learning & Institution Management System</p>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding:32px;">
+              <h2 style="margin:0 0 16px 0;font-size:18px;font-weight:600;color:#f8fafc;">${title}</h2>
+              <div style="font-size:14px;line-height:1.6;color:#cbd5e1;margin-bottom:24px;">
+                ${bodyContent}
+              </div>
+              
+              ${ctaText && ctaUrl ? `
+              <div style="margin:28px 0;text-align:left;">
+                <a href="${ctaUrl}" target="_blank" style="background-color:#4f46e5;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;box-shadow:0 4px 12px rgba(79,70,229,0.35);">
+                  ${ctaText} &rarr;
+                </a>
+              </div>
+              ` : ''}
+
+              <hr style="border:none;border-top:1px solid #334155;margin:28px 0 20px 0;" />
+              
+              <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5;">
+                ${footerText}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+}
