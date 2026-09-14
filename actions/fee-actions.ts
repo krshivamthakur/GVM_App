@@ -13,7 +13,10 @@ import {
   FeePaymentStatus,
   FeeInstallment,
   FeeReceiptInstitutionSettings,
-  DEFAULT_RECEIPT_SETTINGS
+  DEFAULT_RECEIPT_SETTINGS,
+  FeeStructureItem,
+  BillingFrequency,
+  DiscountType
 } from '@/types/fee'
 import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
@@ -228,59 +231,408 @@ export async function syncStudentsFromDirectory(): Promise<{
 // SERVER ACTIONS: CATEGORIES & STRUCTURES
 // ============================================================
 
+// ============================================================
+// SERVER ACTIONS: CATEGORIES & STRUCTURES (SUPABASE PERSISTED)
+// ============================================================
+
 export async function getFeeCategories(): Promise<FeeCategory[]> {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('fee_categories')
+      .select('*')
+      .order('created_at', { ascending: true })
+
+    if (!error && data && data.length > 0) {
+      MOCK_CATEGORIES = data.map(c => ({
+        id: c.id,
+        name: c.name,
+        code: c.code,
+        description: c.description || undefined,
+        isRefundable: c.is_refundable ?? false
+      }))
+      return [...MOCK_CATEGORIES]
+    }
+  } catch (err) {
+    console.warn('Supabase getFeeCategories error, falling back:', err)
+  }
   return [...MOCK_CATEGORIES]
 }
 
 export async function createFeeCategory(category: Omit<FeeCategory, 'id'>): Promise<FeeCategory> {
-  const newCategory: FeeCategory = {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('fee_categories')
+      .insert({
+        name: category.name,
+        code: category.code,
+        description: category.description || null,
+        is_refundable: category.isRefundable ?? false
+      })
+      .select()
+      .single()
+
+    if (!error && data) {
+      const newCat: FeeCategory = {
+        id: data.id,
+        name: data.name,
+        code: data.code,
+        description: data.description || undefined,
+        isRefundable: data.is_refundable ?? false
+      }
+      MOCK_CATEGORIES = [...MOCK_CATEGORIES.filter(c => c.id !== newCat.id), newCat]
+      revalidatePath('/admin/fees')
+      return newCat
+    }
+  } catch (err) {
+    console.warn('Supabase createFeeCategory error, fallback to memory:', err)
+  }
+
+  const fallbackCat: FeeCategory = {
     ...category,
     id: `cat_${Date.now()}`
   }
-  MOCK_CATEGORIES.push(newCategory)
-  return newCategory
+  MOCK_CATEGORIES.push(fallbackCat)
+  revalidatePath('/admin/fees')
+  return fallbackCat
 }
 
 export async function getFeeStructures(): Promise<FeeStructure[]> {
-  ensureDefaultFeeStructures()
+  try {
+    const supabase = createAdminClient()
+
+    // 1. Fetch fee structures with itemized categories joined
+    const { data: dbStructures, error: structError } = await supabase
+      .from('fee_structures')
+      .select(`
+        *,
+        fee_structure_items (
+          id,
+          amount,
+          is_optional,
+          category_id,
+          fee_categories (
+            id,
+            name,
+            code
+          )
+        )
+      `)
+      .order('created_at', { ascending: false })
+
+    // 2. Fetch courses to resolve course names
+    const { data: dbCourses } = await supabase.from('courses').select('id, title')
+    const courseMap = new Map<string, string>()
+    if (dbCourses) {
+      dbCourses.forEach(c => courseMap.set(c.id, c.title))
+    }
+
+    if (!structError && dbStructures && dbStructures.length > 0) {
+      MOCK_STRUCTURES = dbStructures.map((s: any) => {
+        const items: FeeStructureItem[] = (s.fee_structure_items || []).map((item: any) => ({
+          id: item.id,
+          categoryId: item.category_id,
+          categoryName: item.fee_categories?.name || 'General Fee',
+          amount: Number(item.amount) || 0,
+          isOptional: item.is_optional ?? false
+        }))
+
+        const resolvedCourseName = courseMap.get(s.course_id) || s.course_id || 'General Curriculum'
+
+        return {
+          id: s.id,
+          name: s.name,
+          courseId: s.course_id,
+          courseName: resolvedCourseName,
+          courseIds: [s.course_id],
+          courseNames: [resolvedCourseName],
+          batchYear: s.batch_year,
+          frequency: (s.frequency as BillingFrequency) || 'semester',
+          totalAmount: Number(s.total_amount) || 0,
+          dueDate: s.due_date,
+          gracePeriodDays: Number(s.grace_period_days) ?? 7,
+          lateFinePerDay: Number(s.late_fine_per_day) ?? 50,
+          maxLateFine: Number(s.max_late_fine) ?? 1500,
+          items,
+          isActive: s.is_active ?? true,
+          createdAt: s.created_at ? s.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+        }
+      })
+      return [...MOCK_STRUCTURES]
+    }
+  } catch (err) {
+    console.warn('Supabase getFeeStructures error, falling back:', err)
+  }
+
   return [...MOCK_STRUCTURES]
 }
 
 export async function createFeeStructure(structure: Omit<FeeStructure, 'id' | 'createdAt'>): Promise<FeeStructure> {
-  const newStructure: FeeStructure = {
-    ...structure,
-    id: `struct_${Date.now()}`,
-    createdAt: new Date().toISOString().split('T')[0]
+  try {
+    const supabase = createAdminClient()
+
+    // 1. Insert fee structure record into Supabase
+    const { data: dbStruct, error: structErr } = await supabase
+      .from('fee_structures')
+      .insert({
+        name: structure.name,
+        course_id: (structure.courseId || '').slice(0, 50),
+        batch_year: structure.batchYear,
+        frequency: structure.frequency,
+        total_amount: structure.totalAmount,
+        due_date: structure.dueDate || new Date().toISOString().split('T')[0],
+        grace_period_days: structure.gracePeriodDays ?? 7,
+        late_fine_per_day: structure.lateFinePerDay ?? 50,
+        max_late_fine: structure.maxLateFine ?? 1500,
+        is_active: structure.isActive ?? true
+      })
+      .select()
+      .single()
+
+    if (structErr || !dbStruct) {
+      console.error('Failed to create fee_structures row in Supabase:', structErr)
+      throw new Error(structErr?.message || 'Database error creating fee structure')
+    }
+
+    // 2. Fetch categories to link/resolve category UUIDs for items
+    const { data: existingCats } = await supabase.from('fee_categories').select('*')
+    const cats = existingCats || []
+
+    const insertedItems: FeeStructureItem[] = []
+    if (structure.items && structure.items.length > 0) {
+      for (const item of structure.items) {
+        let matchedCat = cats.find(c => c.id === item.categoryId || c.name.toLowerCase() === item.categoryName.toLowerCase())
+        if (!matchedCat && cats.length > 0) {
+          // If category not found, create it in fee_categories to satisfy foreign key
+          const { data: newCat } = await supabase
+            .from('fee_categories')
+            .insert({
+              name: item.categoryName || 'General Fee',
+              code: (item.categoryName || 'GEN').substring(0, 4).toUpperCase(),
+              description: item.categoryName,
+              is_refundable: false
+            })
+            .select()
+            .single()
+          if (newCat) {
+            matchedCat = newCat
+            cats.push(newCat)
+          } else {
+            matchedCat = cats[0]
+          }
+        }
+
+        const validCatId = matchedCat?.id || cats[0]?.id
+        if (validCatId) {
+          const { data: insertedItem, error: itemErr } = await supabase
+            .from('fee_structure_items')
+            .insert({
+              structure_id: dbStruct.id,
+              category_id: validCatId,
+              amount: item.amount,
+              is_optional: item.isOptional ?? false
+            })
+            .select()
+            .single()
+
+          if (!itemErr && insertedItem) {
+            insertedItems.push({
+              id: insertedItem.id,
+              categoryId: validCatId,
+              categoryName: matchedCat?.name || item.categoryName,
+              amount: Number(insertedItem.amount) || item.amount,
+              isOptional: insertedItem.is_optional ?? false
+            })
+          }
+        }
+      }
+    }
+
+    const newStructure: FeeStructure = {
+      id: dbStruct.id,
+      name: dbStruct.name,
+      courseId: dbStruct.course_id,
+      courseName: structure.courseName,
+      courseIds: structure.courseIds || [dbStruct.course_id],
+      courseNames: structure.courseNames || [structure.courseName],
+      batchYear: dbStruct.batch_year,
+      frequency: (dbStruct.frequency as BillingFrequency) || structure.frequency,
+      totalAmount: Number(dbStruct.total_amount) || structure.totalAmount,
+      dueDate: dbStruct.due_date,
+      gracePeriodDays: Number(dbStruct.grace_period_days),
+      lateFinePerDay: Number(dbStruct.late_fine_per_day),
+      maxLateFine: Number(dbStruct.max_late_fine),
+      items: insertedItems.length > 0 ? insertedItems : structure.items,
+      isActive: dbStruct.is_active ?? true,
+      createdAt: dbStruct.created_at ? dbStruct.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
+    }
+
+    MOCK_STRUCTURES = [newStructure, ...MOCK_STRUCTURES.filter(s => s.id !== newStructure.id)]
+    revalidatePath('/admin/fees')
+    revalidatePath('/student/fees')
+    return newStructure
+  } catch (err: any) {
+    console.error('createFeeStructure Supabase error:', err)
+    throw new Error(err.message || 'Failed to create fee structure in database')
   }
-  MOCK_STRUCTURES.push(newStructure)
-  return newStructure
 }
 
 export async function updateFeeStructure(id: string, updates: Partial<FeeStructure>): Promise<FeeStructure | null> {
-  const index = MOCK_STRUCTURES.findIndex(s => s.id === id)
-  if (index === -1) return null
-  MOCK_STRUCTURES[index] = { ...MOCK_STRUCTURES[index], ...updates }
-  return MOCK_STRUCTURES[index]
+  try {
+    const supabase = createAdminClient()
+
+    const dbUpdates: Record<string, any> = {}
+    if (updates.name !== undefined) dbUpdates.name = updates.name
+    if (updates.courseId !== undefined) dbUpdates.course_id = updates.courseId.slice(0, 50)
+    if (updates.batchYear !== undefined) dbUpdates.batch_year = updates.batchYear
+    if (updates.frequency !== undefined) dbUpdates.frequency = updates.frequency
+    if (updates.totalAmount !== undefined) dbUpdates.total_amount = updates.totalAmount
+    if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate
+    if (updates.gracePeriodDays !== undefined) dbUpdates.grace_period_days = updates.gracePeriodDays
+    if (updates.lateFinePerDay !== undefined) dbUpdates.late_fine_per_day = updates.lateFinePerDay
+    if (updates.maxLateFine !== undefined) dbUpdates.max_late_fine = updates.maxLateFine
+    if (updates.isActive !== undefined) dbUpdates.is_active = updates.isActive
+
+    if (Object.keys(dbUpdates).length > 0) {
+      await supabase.from('fee_structures').update(dbUpdates).eq('id', id)
+    }
+
+    if (updates.items && updates.items.length > 0) {
+      await supabase.from('fee_structure_items').delete().eq('structure_id', id)
+      const { data: existingCats } = await supabase.from('fee_categories').select('*')
+      const cats = existingCats || []
+
+      for (const item of updates.items) {
+        let matchedCat = cats.find(c => c.id === item.categoryId || c.name.toLowerCase() === item.categoryName.toLowerCase())
+        if (!matchedCat && cats.length > 0) {
+          const { data: newCat } = await supabase
+            .from('fee_categories')
+            .insert({
+              name: item.categoryName || 'General Fee',
+              code: (item.categoryName || 'GEN').substring(0, 4).toUpperCase(),
+              description: item.categoryName,
+              is_refundable: false
+            })
+            .select()
+            .single()
+          if (newCat) {
+            matchedCat = newCat
+            cats.push(newCat)
+          } else {
+            matchedCat = cats[0]
+          }
+        }
+        const validCatId = matchedCat?.id || cats[0]?.id
+        if (validCatId) {
+          await supabase.from('fee_structure_items').insert({
+            structure_id: id,
+            category_id: validCatId,
+            amount: item.amount,
+            is_optional: item.isOptional ?? false
+          })
+        }
+      }
+    }
+
+    const index = MOCK_STRUCTURES.findIndex(s => s.id === id)
+    if (index !== -1) {
+      MOCK_STRUCTURES[index] = { ...MOCK_STRUCTURES[index], ...updates }
+    }
+    revalidatePath('/admin/fees')
+    revalidatePath('/student/fees')
+    return MOCK_STRUCTURES[index] || null
+  } catch (err) {
+    console.error('updateFeeStructure Supabase error:', err)
+    return null
+  }
 }
 
 export async function deleteFeeStructure(id: string): Promise<boolean> {
+  try {
+    const supabase = createAdminClient()
+    await supabase.from('fee_structure_items').delete().eq('structure_id', id)
+    const { error } = await supabase.from('fee_structures').delete().eq('id', id)
+    if (!error) {
+      MOCK_STRUCTURES = MOCK_STRUCTURES.filter(s => s.id !== id)
+      revalidatePath('/admin/fees')
+      revalidatePath('/student/fees')
+      return true
+    }
+  } catch (err) {
+    console.error('deleteFeeStructure Supabase error:', err)
+  }
   const before = MOCK_STRUCTURES.length
   MOCK_STRUCTURES = MOCK_STRUCTURES.filter(s => s.id !== id)
+  revalidatePath('/admin/fees')
+  revalidatePath('/student/fees')
   return MOCK_STRUCTURES.length < before
 }
 
 export async function getFeeDiscounts(): Promise<FeeDiscount[]> {
-  ensureDefaultDiscounts()
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('fee_discounts')
+      .select('*')
+      .order('created_at', { ascending: true })
+
+    if (!error && data && data.length > 0) {
+      MOCK_DISCOUNTS = data.map(d => ({
+        id: d.id,
+        name: d.name,
+        discountType: (d.discount_type as DiscountType) || 'percentage',
+        value: Number(d.value) || 0,
+        description: d.description || undefined,
+        isActive: d.is_active ?? true
+      }))
+      return [...MOCK_DISCOUNTS]
+    }
+  } catch (err) {
+    console.warn('Supabase getFeeDiscounts error, falling back:', err)
+  }
   return [...MOCK_DISCOUNTS]
 }
 
 export async function createFeeDiscount(discount: Omit<FeeDiscount, 'id'>): Promise<FeeDiscount> {
-  const newDiscount: FeeDiscount = {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('fee_discounts')
+      .insert({
+        name: discount.name,
+        discount_type: discount.discountType,
+        value: discount.value,
+        description: discount.description || null,
+        is_active: discount.isActive ?? true
+      })
+      .select()
+      .single()
+
+    if (!error && data) {
+      const newDsc: FeeDiscount = {
+        id: data.id,
+        name: data.name,
+        discountType: data.discount_type as DiscountType,
+        value: Number(data.value),
+        description: data.description || undefined,
+        isActive: data.is_active ?? true
+      }
+      MOCK_DISCOUNTS = [...MOCK_DISCOUNTS.filter(d => d.id !== newDsc.id), newDsc]
+      revalidatePath('/admin/fees')
+      return newDsc
+    }
+  } catch (err) {
+    console.warn('Supabase createFeeDiscount error:', err)
+  }
+
+  const fallbackDsc: FeeDiscount = {
     ...discount,
     id: `dsc_${Date.now()}`
   }
-  MOCK_DISCOUNTS.push(newDiscount)
-  return newDiscount
+  MOCK_DISCOUNTS.push(fallbackDsc)
+  revalidatePath('/admin/fees')
+  return fallbackDsc
 }
 
 // ============================================================
@@ -463,6 +815,24 @@ export async function assignFeeStructureToStudent(params: {
     syncedAt: new Date().toISOString()
   }
 
+  // Persist to Supabase student_fee_profiles
+  try {
+    const supabase = createAdminClient()
+    await supabase.from('student_fee_profiles').upsert({
+      student_id: profile.studentId,
+      structure_id: structure.id,
+      discount_id: params.discountId && params.discountId !== 'none' ? params.discountId : null,
+      custom_adjustment: customAdjustment,
+      net_fee: netFee,
+      paid_fee: profile.paidFee,
+      due_fee: remainingDue,
+      late_fine_accrued: profile.lateFineAccrued,
+      status: status
+    }, { onConflict: 'student_id' })
+  } catch (err) {
+    console.warn('Supabase assignFeeStructureToStudent error:', err)
+  }
+
   MOCK_STUDENT_PROFILES[profileIndex] = updated
   revalidatePath('/admin/fees')
   revalidatePath('/student/fees')
@@ -528,9 +898,44 @@ export async function recordFeePayment(params: {
     status: 'verified'
   }
 
+  // Persist to Supabase fee_payments & update student_fee_profiles
+  try {
+    const supabase = createAdminClient()
+    const { data: dbPayment } = await supabase.from('fee_payments').insert({
+      receipt_number: receiptNum,
+      student_id: profile.studentId,
+      installment_id: params.installmentId || null,
+      amount_paid: params.amount,
+      payment_mode: params.paymentMode,
+      transaction_ref: newPayment.transactionRef,
+      received_by: newPayment.receivedBy,
+      notes: params.notes || null,
+      status: 'verified'
+    }).select().single()
+
+    if (dbPayment) {
+      newPayment.id = dbPayment.id
+    }
+
+    await supabase.from('student_fee_profiles').upsert({
+      student_id: profile.studentId,
+      structure_id: profile.structureId,
+      discount_id: profile.discountId || null,
+      custom_adjustment: profile.customAdjustment || 0,
+      net_fee: profile.netFee,
+      paid_fee: profile.paidFee + params.amount,
+      due_fee: Math.max(0, profile.netFee + profile.lateFineAccrued - (profile.paidFee + params.amount)),
+      late_fine_accrued: profile.lateFineAccrued,
+      last_payment_date: newPayment.paymentDate.split(' ')[0],
+      status: Math.max(0, profile.netFee + profile.lateFineAccrued - (profile.paidFee + params.amount)) === 0 ? 'paid' : 'partial'
+    }, { onConflict: 'student_id' })
+  } catch (err) {
+    console.warn('Supabase recordFeePayment error:', err)
+  }
+
   MOCK_PAYMENTS.unshift(newPayment)
 
-  // Update profile totals
+  // Update profile totals in memory
   profile.paidFee += params.amount
   profile.dueFee = Math.max(0, profile.netFee + profile.lateFineAccrued - profile.paidFee)
   profile.lastPaymentDate = newPayment.paymentDate.split(' ')[0]
@@ -559,6 +964,49 @@ export async function getFeePayments(filters?: {
   paymentMode?: PaymentMode
   search?: string
 }): Promise<FeePayment[]> {
+  try {
+    const supabase = createAdminClient()
+    let query = supabase.from('fee_payments').select('*').order('created_at', { ascending: false })
+    if (filters?.studentId) {
+      query = query.eq('student_id', filters.studentId)
+    }
+    if (filters?.status) {
+      query = query.eq('status', filters.status)
+    }
+    if (filters?.paymentMode) {
+      query = query.eq('payment_mode', filters.paymentMode)
+    }
+    const { data, error } = await query
+    if (!error && data && data.length > 0) {
+      const studentMap = new Map<string, { name: string; rollNumber: string; courseName: string }>()
+      for (const p of MOCK_STUDENT_PROFILES) {
+        studentMap.set(p.studentId, { name: p.studentName, rollNumber: p.rollNumber, courseName: p.courseName })
+      }
+
+      MOCK_PAYMENTS = data.map((pay: any) => {
+        const studentInfo = studentMap.get(pay.student_id)
+        return {
+          id: pay.id,
+          receiptNumber: pay.receipt_number,
+          studentId: pay.student_id,
+          studentName: studentInfo?.name || 'Student',
+          rollNumber: studentInfo?.rollNumber || 'GVM-2026',
+          courseName: studentInfo?.courseName || 'General Curriculum',
+          installmentId: pay.installment_id || undefined,
+          amountPaid: Number(pay.amount_paid) || 0,
+          paymentMode: (pay.payment_mode as PaymentMode) || 'cash',
+          transactionRef: pay.transaction_ref || undefined,
+          paymentDate: pay.payment_date ? pay.payment_date.replace('T', ' ').slice(0, 19) : new Date().toISOString().replace('T', ' ').slice(0, 19),
+          receivedBy: pay.received_by || 'Admin Accounts',
+          notes: pay.notes || undefined,
+          status: (pay.status as TransactionStatus) || 'verified'
+        }
+      })
+    }
+  } catch (err) {
+    console.warn('Supabase getFeePayments error:', err)
+  }
+
   let list = [...MOCK_PAYMENTS]
 
   if (filters?.studentId) {
