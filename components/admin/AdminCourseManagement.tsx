@@ -343,16 +343,9 @@ export function AdminCourseManagement({ initialCourses, teachers }: AdminCourseM
       {/* Top Banner & Quick Metrics */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-            <BookOpen className="w-4 h-4" />
-            <span>Curriculum & Platform Administration</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight mt-1">
-            Course Management Center
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+            Course Management
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Create courses, build curriculum modules, assign instructors, manage lecture videos, and publish live content.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">

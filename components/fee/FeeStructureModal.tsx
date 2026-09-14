@@ -26,7 +26,9 @@ import {
   TrendingUp,
   Percent,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  Search,
+  GraduationCap
 } from 'lucide-react'
 
 interface CourseOption {
@@ -151,15 +153,13 @@ export function FeeStructureModal({
     `${currentYear + 2}-${currentYear + 3}`,
   ]
 
-  // Default initial course from Course Management
-  const defaultInitialCourse = editingStructure?.courseName
-    ? { id: editingStructure.courseId || '', title: editingStructure.courseName }
-    : (availableCourses[0] || { id: '', title: '' })
+  // Multi-Course selection state
+  const [selectedCourses, setSelectedCourses] = useState<Array<{ id: string; title: string; price?: number; category?: string }>>([])
+  const [isCourseDropdownOpen, setIsCourseDropdownOpen] = useState(false)
+  const [courseSearch, setCourseSearch] = useState('')
+  const [isAddingCustomCourse, setIsAddingCustomCourse] = useState(false)
+  const [customCourseInput, setCustomCourseInput] = useState('')
 
-  // Form states
-  const [isCustomCourse, setIsCustomCourse] = useState(false)
-  const [courseName, setCourseName] = useState(editingStructure?.courseName || defaultInitialCourse.title)
-  const [courseId, setCourseId] = useState(editingStructure?.courseId || defaultInitialCourse.id)
   const [batchYear, setBatchYear] = useState(
     editingStructure?.batchYear || `${currentYear}-${currentYear + 1}`
   )
@@ -212,12 +212,134 @@ export function FeeStructureModal({
     one_time: { label: 'One-Time (Admission)', count: 1, suffix: 'total course' },
   }
 
-  // Dynamic Title Auto-Generator
+  // Synchronize state when modal opens or editingStructure changes
+  useEffect(() => {
+    if (!isOpen) {
+      setIsCourseDropdownOpen(false)
+      setIsAddingCustomCourse(false)
+      setCustomCourseInput('')
+      setCourseSearch('')
+      return
+    }
+
+    if (editingStructure) {
+      if (editingStructure.courseIds && editingStructure.courseIds.length > 0) {
+        const mapped = editingStructure.courseIds.map((cid, idx) => {
+          const match = availableCourses.find(c => c.id === cid)
+          return {
+            id: cid,
+            title: match?.title || editingStructure.courseNames?.[idx] || cid,
+            price: match?.price,
+            category: match?.category
+          }
+        })
+        setSelectedCourses(mapped)
+      } else if (editingStructure.courseName) {
+        const parts = editingStructure.courseName.split(',').map(s => s.trim()).filter(Boolean)
+        if (parts.length > 1) {
+          setSelectedCourses(parts.map(p => {
+            const match = availableCourses.find(c => c.title.toLowerCase() === p.toLowerCase())
+            return {
+              id: match?.id || `crs_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              title: p,
+              price: match?.price,
+              category: match?.category
+            }
+          }))
+        } else {
+          setSelectedCourses([{
+            id: editingStructure.courseId || `crs_${Date.now()}`,
+            title: editingStructure.courseName
+          }])
+        }
+      }
+      setBatchYear(editingStructure.batchYear || `${currentYear}-${currentYear + 1}`)
+      setFrequency(editingStructure.frequency || 'semester')
+      setDueDate(editingStructure.dueDate || '')
+      setGracePeriodDays(editingStructure.gracePeriodDays ?? 7)
+      setLateFinePerDay(editingStructure.lateFinePerDay ?? 50)
+      setMaxLateFine(editingStructure.maxLateFine ?? 1500)
+      setName(editingStructure.name || '')
+      setIsTitleAutoSync(false)
+      if (editingStructure.items && editingStructure.items.length > 0) {
+        setItems(editingStructure.items.map(i => ({ categoryId: i.categoryId, amount: i.amount })))
+      }
+    } else {
+      if (availableCourses.length > 0) {
+        setSelectedCourses([{
+          id: availableCourses[0].id,
+          title: availableCourses[0].title,
+          price: availableCourses[0].price,
+          category: availableCourses[0].category
+        }])
+      } else {
+        setSelectedCourses([])
+      }
+      setBatchYear(`${currentYear}-${currentYear + 1}`)
+      setFrequency('semester')
+      setDueDate('')
+      setGracePeriodDays(7)
+      setLateFinePerDay(50)
+      setMaxLateFine(1500)
+      setName('')
+      setIsTitleAutoSync(true)
+    }
+  }, [editingStructure, isOpen, availableCourses, currentYear])
+
+  // Multi-Course Helpers
+  const toggleCourse = (course: CourseOption) => {
+    const exists = selectedCourses.some(c => c.id === course.id)
+    if (exists) {
+      setSelectedCourses(selectedCourses.filter(c => c.id !== course.id))
+    } else {
+      setSelectedCourses([...selectedCourses, {
+        id: course.id,
+        title: course.title,
+        price: course.price,
+        category: course.category
+      }])
+    }
+  }
+
+  const handleSelectAllCourses = () => {
+    setSelectedCourses(availableCourses.map(c => ({
+      id: c.id,
+      title: c.title,
+      price: c.price,
+      category: c.category
+    })))
+  }
+
+  const handleClearAllCourses = () => {
+    setSelectedCourses([])
+  }
+
+  const handleAddCustomCourse = () => {
+    const trimmed = customCourseInput.trim()
+    if (!trimmed) return
+    const id = `custom_${Date.now()}`
+    setSelectedCourses([...selectedCourses, { id, title: trimmed, category: 'Custom' }])
+    setCustomCourseInput('')
+    setIsAddingCustomCourse(false)
+  }
+
+  // Dynamic Title Auto-Generator supporting multiple courses
   const generatedTitle = useMemo(() => {
-    const course = courseName.trim() || 'General Course'
+    let coursePart = 'General Curriculum'
+    if (selectedCourses.length === 1) {
+      coursePart = selectedCourses[0].title
+    } else if (selectedCourses.length === 2) {
+      coursePart = `${selectedCourses[0].title} & ${selectedCourses[1].title}`
+    } else if (selectedCourses.length > 2) {
+      if (selectedCourses.length === availableCourses.length && availableCourses.length > 2) {
+        coursePart = `All Courses (${selectedCourses.length})`
+      } else {
+        coursePart = `${selectedCourses[0].title}, ${selectedCourses[1].title} (+${selectedCourses.length - 2} more)`
+      }
+    }
     const freqLabel = frequencyLabels[frequency]?.label || frequency
-    return `${course} - Batch ${batchYear} (${freqLabel})`
-  }, [courseName, batchYear, frequency])
+    return `${coursePart} - Batch ${batchYear} (${freqLabel})`
+  }, [selectedCourses, availableCourses.length, batchYear, frequency])
 
   // Sync title whenever parameters change if auto-sync is on
   useEffect(() => {
@@ -386,8 +508,8 @@ export function FeeStructureModal({
       return
     }
 
-    if (!courseName.trim()) {
-      setError('Please choose or enter a target course/program.')
+    if (selectedCourses.length === 0) {
+      setError('Please select at least one target course/program.')
       return
     }
 
@@ -408,13 +530,18 @@ export function FeeStructureModal({
         }
       })
 
-      const finalCourseId = courseId.trim() || `crs_${Date.now()}`
+      const courseIds = selectedCourses.map(c => c.id)
+      const courseNames = selectedCourses.map(c => c.title)
+      const primaryCourseId = courseIds[0] || `crs_${Date.now()}`
+      const primaryCourseName = courseNames.join(', ')
 
       if (editingStructure) {
         const updated = await updateFeeStructure(editingStructure.id, {
           name: finalName,
-          courseId: finalCourseId,
-          courseName: courseName.trim(),
+          courseId: primaryCourseId,
+          courseName: primaryCourseName,
+          courseIds,
+          courseNames,
           batchYear: batchYear.trim(),
           frequency,
           totalAmount,
@@ -431,8 +558,10 @@ export function FeeStructureModal({
       } else {
         const created = await createFeeStructure({
           name: finalName,
-          courseId: finalCourseId,
-          courseName: courseName.trim(),
+          courseId: primaryCourseId,
+          courseName: primaryCourseName,
+          courseIds,
+          courseNames,
           batchYear: batchYear.trim(),
           frequency,
           totalAmount,
@@ -495,12 +624,15 @@ export function FeeStructureModal({
             </div>
           )}
 
-          {/* SECTION 1: COURSE & STRUCTURE IDENTIFICATION */}
-          <div className="space-y-3 p-4 rounded-xl bg-muted/20 border border-border/60">
-            <div className="flex items-center justify-between">
+          {/* SECTION 1: TARGET COURSES & STRUCTURE IDENTIFICATION */}
+          <div className="space-y-3.5 p-4 rounded-xl bg-muted/20 border border-border/60">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wide">
                 <Tag className="w-3.5 h-3.5 text-primary" />
-                1. Course & Title Configuration
+                1. Target Courses & Title Configuration
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 normal-case">
+                  {selectedCourses.length} {selectedCourses.length === 1 ? 'Course' : 'Courses'} Selected
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -519,120 +651,257 @@ export function FeeStructureModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Target Course / Program Dropdown */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-semibold text-foreground flex items-center gap-1">
-                    Target Course / Program
-                    <span className="text-[10px] font-normal text-primary bg-primary/10 px-1.5 py-0.2 rounded border border-primary/20">
-                      Dropdown
-                    </span>
-                  </label>
-                  {isCustomCourse && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomCourse(false)
-                        setCourseId(availableCourses[0]?.id || '')
-                        setCourseName(availableCourses[0]?.title || '')
-                      }}
-                      className="text-[10px] text-primary hover:underline font-medium"
-                    >
-                      ← Back to Course Dropdown
-                    </button>
-                  )}
-                </div>
-
-                <div className="relative">
-                  <select
-                    value={isCustomCourse ? '__custom__' : courseId}
-                    onChange={e => {
-                      const val = e.target.value
-                      if (val === '__custom__') {
-                        setIsCustomCourse(true)
-                        setCourseName('')
-                        setCourseId(`custom_${Date.now()}`)
-                      } else {
-                        setIsCustomCourse(false)
-                        const sel = availableCourses.find(c => c.id === val)
-                        if (sel) {
-                          setCourseId(sel.id)
-                          setCourseName(sel.title)
-                          if (sel.price && items.length > 0) {
-                            const newItems = [...items]
-                            newItems[0] = { ...newItems[0], amount: sel.price }
-                            setItems(newItems)
-                          }
-                        }
-                      }
-                    }}
-                    className="w-full px-3 py-2 pr-9 text-xs bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none font-medium cursor-pointer shadow-xs"
+            {/* Multi-Course Selection Area */}
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 text-primary" />
+                  Target Courses / Programs
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    (Multi-select allowed — attach 1 or more courses)
+                  </span>
+                </label>
+                <div className="flex items-center gap-2 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllCourses}
+                    className="text-primary hover:underline font-medium"
                   >
-                    <option value="" disabled>-- Select Course from Courses Management --</option>
-                    {availableCourses.map(course => (
-                      <option key={course.id} value={course.id}>
-                        {course.title} {course.price ? `(₹${course.price.toLocaleString('en-IN')})` : ''} {course.category ? `• ${course.category}` : ''}
-                      </option>
-                    ))}
-                    <option value="__custom__">➕ Type Custom Course / Program...</option>
-                  </select>
-                  <ChevronDown className="w-4 h-4 text-muted-foreground absolute right-2.5 top-2.5 pointer-events-none" />
+                    Select All ({availableCourses.length})
+                  </button>
+                  <span className="text-muted-foreground">•</span>
+                  <button
+                    type="button"
+                    onClick={handleClearAllCourses}
+                    className="text-muted-foreground hover:text-foreground font-medium"
+                  >
+                    Clear
+                  </button>
+                  <span className="text-muted-foreground">•</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingCustomCourse(!isAddingCustomCourse)}
+                    className="text-primary hover:underline font-medium flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Custom Course
+                  </button>
                 </div>
+              </div>
 
-                {/* Inline custom course text box if user selected custom */}
-                {isCustomCourse && (
-                  <div className="mt-2 animate-in fade-in">
-                    <input
-                      type="text"
-                      value={courseName}
-                      onChange={e => setCourseName(e.target.value)}
-                      placeholder="e.g. Java Programming Masterclass"
-                      required
-                      className="w-full px-3 py-2 text-xs bg-background border border-primary/50 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      autoFocus
-                    />
-                  </div>
+              {/* Selected Courses Chips / Tags */}
+              <div className="min-h-[40px] p-2 rounded-xl bg-background border border-border/80 flex flex-wrap items-center gap-1.5 shadow-2xs">
+                {selectedCourses.length === 0 ? (
+                  <span className="text-xs text-muted-foreground italic px-1">
+                    No courses selected yet. Click below or "Select All" to attach courses to this fee structure.
+                  </span>
+                ) : (
+                  selectedCourses.map(course => (
+                    <span
+                      key={course.id}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium bg-primary/10 text-primary border border-primary/25 px-2.5 py-1 rounded-lg animate-in fade-in zoom-in-95 duration-100"
+                    >
+                      <span className="truncate max-w-[200px]">{course.title}</span>
+                      {course.price ? (
+                        <span className="text-[10px] text-muted-foreground">
+                          (₹{course.price.toLocaleString('en-IN')})
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCourses(selectedCourses.filter(c => c.id !== course.id))}
+                        className="hover:bg-primary/20 rounded p-0.5 transition-colors text-primary/70 hover:text-primary"
+                        title={`Remove ${course.title}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))
                 )}
               </div>
 
-              {/* Structure Title */}
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1">
-                  Structure Title
-                  {isTitleAutoSync && (
-                    <span className="ml-1 text-[10px] text-emerald-500 font-normal">
-                      (Auto-generated)
-                    </span>
-                  )}
-                </label>
-                <div className="relative">
+              {/* Inline custom course input */}
+              {isAddingCustomCourse && (
+                <div className="flex items-center gap-2 p-2.5 bg-muted/40 border border-primary/30 rounded-xl animate-in fade-in">
                   <input
                     type="text"
-                    value={name}
-                    onChange={e => {
-                      setIsTitleAutoSync(false)
-                      setName(e.target.value)
+                    value={customCourseInput}
+                    onChange={e => setCustomCourseInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        handleAddCustomCourse()
+                      }
                     }}
-                    placeholder="e.g. B.Tech Computer Science 2026-27"
-                    required
-                    className="w-full px-3 py-2 text-xs bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                    placeholder="Type custom course/program name (e.g. 10th ICSE Foundation)"
+                    className="flex-1 px-3 py-1.5 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    autoFocus
                   />
-                  {!isTitleAutoSync && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsTitleAutoSync(true)
-                        setName(generatedTitle)
-                      }}
-                      className="absolute right-2 top-2 text-[10px] text-primary hover:underline flex items-center gap-0.5"
-                      title="Reset to auto title"
-                    >
-                      <RefreshCw className="w-2.5 h-2.5" />
-                      Sync
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleAddCustomCourse}
+                    className="px-3 py-1.5 text-xs font-semibold bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                  >
+                    Add Course
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingCustomCourse(false)
+                      setCustomCourseInput('')
+                    }}
+                    className="px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground rounded-lg"
+                  >
+                    Cancel
+                  </button>
                 </div>
+              )}
+
+              {/* Multi-Select Dropdown Trigger & Popover */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsCourseDropdownOpen(!isCourseDropdownOpen)}
+                  className="w-full px-3.5 py-2.5 text-xs bg-background border border-border rounded-xl flex items-center justify-between hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors cursor-pointer"
+                >
+                  <span className="text-foreground font-medium flex items-center gap-2">
+                    <Layers className="w-3.5 h-3.5 text-primary" />
+                    <span>
+                      {selectedCourses.length === 0
+                        ? 'Click to browse and select courses...'
+                        : `Manage course selection (${selectedCourses.length} selected)`}
+                    </span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-150 ${isCourseDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {isCourseDropdownOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsCourseDropdownOpen(false)}
+                    />
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 p-2.5 bg-card border border-border rounded-xl shadow-2xl space-y-2 animate-in fade-in zoom-in-95 duration-100 max-h-72 overflow-hidden flex flex-col">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={courseSearch}
+                          onChange={e => setCourseSearch(e.target.value)}
+                          placeholder="Search courses by name or category..."
+                          className="w-full px-3 py-1.5 pl-8 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          autoFocus
+                        />
+                        <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2 pointer-events-none" />
+                        {courseSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setCourseSearch('')}
+                            className="absolute right-2 top-1.5 text-muted-foreground hover:text-foreground text-xs font-bold"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="overflow-y-auto space-y-1 flex-1 pr-1 max-h-52">
+                        {availableCourses
+                          .filter(c => !courseSearch || c.title.toLowerCase().includes(courseSearch.toLowerCase()) || (c.category && c.category.toLowerCase().includes(courseSearch.toLowerCase())))
+                          .map(course => {
+                            const isSelected = selectedCourses.some(c => c.id === course.id)
+                            return (
+                              <div
+                                key={course.id}
+                                onClick={() => toggleCourse(course)}
+                                className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-xs transition-colors ${
+                                  isSelected
+                                    ? 'bg-primary/10 text-primary font-medium'
+                                    : 'hover:bg-muted/60 text-foreground'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 truncate">
+                                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0 ${
+                                    isSelected
+                                      ? 'bg-primary border-primary text-primary-foreground'
+                                      : 'border-muted-foreground/40 bg-background'
+                                  }`}>
+                                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                  </div>
+                                  <span className="truncate">{course.title}</span>
+                                  {course.category && (
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border/50 shrink-0">
+                                      {course.category}
+                                    </span>
+                                  )}
+                                </div>
+                                {course.price ? (
+                                  <span className="text-[11px] font-medium text-muted-foreground shrink-0 ml-2">
+                                    ₹{course.price.toLocaleString('en-IN')}
+                                  </span>
+                                ) : null}
+                              </div>
+                            )
+                          })}
+                        {availableCourses.filter(c => !courseSearch || c.title.toLowerCase().includes(courseSearch.toLowerCase()) || (c.category && c.category.toLowerCase().includes(courseSearch.toLowerCase()))).length === 0 && (
+                          <div className="py-4 text-center text-xs text-muted-foreground">
+                            No courses match "{courseSearch}"
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="pt-2 border-t border-border flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground">
+                          {selectedCourses.length} of {availableCourses.length} selected
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsCourseDropdownOpen(false)}
+                          className="px-3 py-1 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-colors"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Structure Title */}
+            <div className="pt-1">
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                Structure Title
+                {isTitleAutoSync && (
+                  <span className="ml-1 text-[10px] text-emerald-500 font-normal">
+                    (Auto-generated)
+                  </span>
+                )}
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={name}
+                  onChange={e => {
+                    setIsTitleAutoSync(false)
+                    setName(e.target.value)
+                  }}
+                  placeholder="e.g. 11th PCM & PCB - Batch 2026-2028 (Per Semester)"
+                  required
+                  className="w-full px-3 py-2 text-xs bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                />
+                {!isTitleAutoSync && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsTitleAutoSync(true)
+                      setName(generatedTitle)
+                    }}
+                    className="absolute right-2 top-2 text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                    title="Reset to auto title"
+                  >
+                    <RefreshCw className="w-2.5 h-2.5" />
+                    Sync
+                  </button>
+                )}
               </div>
             </div>
           </div>

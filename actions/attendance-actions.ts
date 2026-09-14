@@ -17,172 +17,14 @@ import { createAdminClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 // ============================================================
-// IN-MEMORY STORE (with realistic seed data)
+// ============================================================
+// IN-MEMORY STORE (Cleaned of all mock/demo data, strictly reflects DB)
 // ============================================================
 
-const MOCK_CLASSES: AttendanceClass[] = [
-  {
-    id: 'cls_11_pcm',
-    name: 'Class 11 — PCM',
-    courseId: 'course-phy',
-    courseName: 'Physics, Chemistry & Mathematics',
-    teacherId: '__teacher_placeholder__',
-    teacherName: 'Subject Teacher',
-    subjects: [
-      { id: 'sub_phy', name: 'Physics', code: 'PHY101', classId: 'cls_11_pcm' },
-      { id: 'sub_chem', name: 'Chemistry', code: 'CHEM101', classId: 'cls_11_pcm' },
-      { id: 'sub_math', name: 'Mathematics', code: 'MATH101', classId: 'cls_11_pcm' },
-    ],
-    students: [
-      { id: 'stu_001', name: 'Aarav Sharma', rollNumber: 'PCM-001', enrolledAt: '2026-06-01' },
-      { id: 'stu_002', name: 'Priya Patel', rollNumber: 'PCM-002', enrolledAt: '2026-06-01' },
-      { id: 'stu_003', name: 'Rohan Verma', rollNumber: 'PCM-003', enrolledAt: '2026-06-01' },
-      { id: 'stu_004', name: 'Sneha Gupta', rollNumber: 'PCM-004', enrolledAt: '2026-06-01' },
-      { id: 'stu_005', name: 'Arjun Singh', rollNumber: 'PCM-005', enrolledAt: '2026-06-01' },
-    ],
-  },
-  {
-    id: 'cls_12_bio',
-    name: 'Class 12 — Biology',
-    courseId: 'course-bio',
-    courseName: 'Biology & Chemistry',
-    teacherId: '__teacher_placeholder__',
-    teacherName: 'Subject Teacher',
-    subjects: [
-      { id: 'sub_bio', name: 'Biology', code: 'BIO201', classId: 'cls_12_bio' },
-      { id: 'sub_chem2', name: 'Chemistry', code: 'CHEM201', classId: 'cls_12_bio' },
-    ],
-    students: [
-      { id: 'stu_006', name: 'Kavya Nair', rollNumber: 'BIO-001', enrolledAt: '2026-06-01' },
-      { id: 'stu_007', name: 'Dev Mehta', rollNumber: 'BIO-002', enrolledAt: '2026-06-01' },
-      { id: 'stu_008', name: 'Ananya Rao', rollNumber: 'BIO-003', enrolledAt: '2026-06-01' },
-      { id: 'stu_009', name: 'Karan Joshi', rollNumber: 'BIO-004', enrolledAt: '2026-06-01' },
-    ],
-  },
-  {
-    id: 'cls_10_sci',
-    name: 'Class 10 — Science',
-    courseId: 'course-sci',
-    courseName: 'General Science',
-    teacherId: '__teacher_placeholder__',
-    teacherName: 'Subject Teacher',
-    subjects: [
-      { id: 'sub_sci_phy', name: 'Physics', code: 'SCI-P10', classId: 'cls_10_sci' },
-      { id: 'sub_sci_chem', name: 'Chemistry', code: 'SCI-C10', classId: 'cls_10_sci' },
-      { id: 'sub_sci_bio', name: 'Biology', code: 'SCI-B10', classId: 'cls_10_sci' },
-      { id: 'sub_sci_math', name: 'Mathematics', code: 'SCI-M10', classId: 'cls_10_sci' },
-    ],
-    students: [
-      { id: 'stu_010', name: 'Riya Kapoor', rollNumber: 'SCI-001', enrolledAt: '2026-06-01' },
-      { id: 'stu_011', name: 'Aditya Kumar', rollNumber: 'SCI-002', enrolledAt: '2026-06-01' },
-      { id: 'stu_012', name: 'Pooja Mishra', rollNumber: 'SCI-003', enrolledAt: '2026-06-01' },
-      { id: 'stu_013', name: 'Nikhil Sharma', rollNumber: 'SCI-004', enrolledAt: '2026-06-01' },
-      { id: 'stu_014', name: 'Swati Tiwari', rollNumber: 'SCI-005', enrolledAt: '2026-06-01' },
-      { id: 'stu_015', name: 'Harsh Aggarwal', rollNumber: 'SCI-006', enrolledAt: '2026-06-01' },
-    ],
-  },
-]
-
-// Seed some historical attendance records for realism
-const today = new Date()
-const seedDates = [-6, -5, -4, -3, -2, -1].map(d => {
-  const dt = new Date(today)
-  dt.setDate(dt.getDate() + d)
-  // Skip weekends
-  if (dt.getDay() === 0) dt.setDate(dt.getDate() - 2)
-  if (dt.getDay() === 6) dt.setDate(dt.getDate() - 1)
-  return dt.toISOString().slice(0, 10)
-})
-
-const STATUS_POOL: AttendanceStatus[] = ['present', 'present', 'present', 'present', 'absent', 'late']
-
-const attendanceRecords: AttendanceRecord[] = (() => {
-  const recs: AttendanceRecord[] = []
-  let idx = 0
-  for (const cls of MOCK_CLASSES) {
-    for (const sub of cls.subjects) {
-      for (const date of seedDates) {
-        const sessionId = `sess_${cls.id}_${sub.id}_${date}`
-        for (const stu of cls.students) {
-          const status = STATUS_POOL[Math.abs((stu.id.charCodeAt(4) + date.charCodeAt(8) + idx) % STATUS_POOL.length)]
-          recs.push({
-            id: `rec_seed_${idx++}`,
-            sessionId,
-            studentId: stu.id,
-            studentName: stu.name,
-            classId: cls.id,
-            subjectId: sub.id,
-            subjectName: sub.name,
-            date,
-            status,
-            markedBy: cls.teacherId,
-            markedAt: date + 'T09:00:00.000Z',
-          })
-        }
-      }
-    }
-  }
-  return recs
-})()
-
-const attendanceSessions: AttendanceSession[] = (() => {
-  const sessMap = new Map<string, AttendanceSession>()
-  for (const rec of attendanceRecords) {
-    if (!sessMap.has(rec.sessionId)) {
-      const cls = MOCK_CLASSES.find(c => c.id === rec.classId)!
-      const sub = cls.subjects.find(s => s.id === rec.subjectId)!
-      const classRecs = attendanceRecords.filter(r => r.sessionId === rec.sessionId)
-      sessMap.set(rec.sessionId, {
-        id: rec.sessionId,
-        classId: rec.classId,
-        className: cls.name,
-        subjectId: rec.subjectId,
-        subjectName: sub.name,
-        date: rec.date,
-        teacherId: cls.teacherId,
-        teacherName: cls.teacherName,
-        lockStatus: 'open',
-        submittedAt: rec.date + 'T09:30:00.000Z',
-        totalStudents: cls.students.length,
-        presentCount: classRecs.filter(r => r.status === 'present').length,
-        absentCount: classRecs.filter(r => r.status === 'absent').length,
-        lateCount: classRecs.filter(r => r.status === 'late').length,
-        leaveCount: classRecs.filter(r => r.status === 'leave').length,
-      })
-    }
-  }
-  return Array.from(sessMap.values())
-})()
-
-const leaveRequests: LeaveRequest[] = [
-  {
-    id: 'leave_001',
-    studentId: 'stu_003',
-    studentName: 'Rohan Verma',
-    classId: 'cls_11_pcm',
-    className: 'Class 11 — PCM',
-    fromDate: today.toISOString().slice(0, 10),
-    toDate: new Date(today.getTime() + 2 * 86400000).toISOString().slice(0, 10),
-    reason: 'Family function and medical checkup',
-    status: 'pending',
-    submittedAt: new Date(today.getTime() - 86400000).toISOString(),
-  },
-  {
-    id: 'leave_002',
-    studentId: 'stu_007',
-    studentName: 'Dev Mehta',
-    classId: 'cls_12_bio',
-    className: 'Class 12 — Biology',
-    fromDate: new Date(today.getTime() - 3 * 86400000).toISOString().slice(0, 10),
-    toDate: new Date(today.getTime() - 2 * 86400000).toISOString().slice(0, 10),
-    reason: 'Fever and medical treatment',
-    status: 'approved',
-    submittedAt: new Date(today.getTime() - 4 * 86400000).toISOString(),
-    reviewedBy: 'admin',
-    reviewedAt: new Date(today.getTime() - 3 * 86400000).toISOString(),
-    reviewNote: 'Get well soon',
-  },
-]
+const MOCK_CLASSES: AttendanceClass[] = []
+const attendanceRecords: AttendanceRecord[] = []
+const attendanceSessions: AttendanceSession[] = []
+const leaveRequests: LeaveRequest[] = []
 
 let attendanceRule: AttendanceRule = {
   id: 'rule_global',
@@ -234,26 +76,51 @@ export async function getAllClasses(): Promise<AttendanceClass[]> {
         attendance_students(*),
         attendance_subjects(*)
       `)
-    if (!error && data && data.length > 0) {
+    if (!error && data) {
       return data.map(mapDbClass)
     }
   } catch (err) {
     console.warn('Supabase getAllClasses fallback:', err)
   }
 
-  return MOCK_CLASSES
+  return [...MOCK_CLASSES]
 }
 
-export async function getClassesByTeacher(teacherId: string): Promise<AttendanceClass[]> {
-  // Try Supabase first
+export async function getClassesByTeacher(
+  teacherId: string,
+  teacherName?: string,
+  teacherEmail?: string
+): Promise<AttendanceClass[]> {
   try {
     const supabase = createAdminClient()
+
+    // 1. Direct query by teacher_id
     const { data, error } = await supabase
       .from('attendance_classes')
       .select(`*, attendance_students(*), attendance_subjects(*)`)
       .eq('teacher_id', teacherId)
+
     if (!error && data && data.length > 0) {
       return data.map(mapDbClass)
+    }
+
+    // 2. Fallback query matching teacher name or email
+    const nameOrEmail = (teacherName || teacherEmail || '').toLowerCase().trim()
+    if (nameOrEmail) {
+      const { data: allData, error: allErr } = await supabase
+        .from('attendance_classes')
+        .select(`*, attendance_students(*), attendance_subjects(*)`)
+
+      if (!allErr && allData && allData.length > 0) {
+        const matches = allData.filter((d: any) =>
+          d.teacher_id === teacherId ||
+          (d.teacher_name && d.teacher_name.toLowerCase().includes(nameOrEmail)) ||
+          nameOrEmail.includes((d.teacher_name || '').toLowerCase())
+        )
+        if (matches.length > 0) {
+          return matches.map(mapDbClass)
+        }
+      }
     }
   } catch (err) {
     console.warn('Supabase getClassesByTeacher fallback:', err)
@@ -280,7 +147,6 @@ export async function createClass(classData: Omit<AttendanceClass, 'id'>): Promi
     }).select().single()
 
     if (!error && data) {
-      // Insert subjects
       if (newClass.subjects.length > 0) {
         await supabase.from('attendance_subjects').insert(
           newClass.subjects.map(s => ({
@@ -304,38 +170,104 @@ export async function createClass(classData: Omit<AttendanceClass, 'id'>): Promi
 
 export async function updateClass(
   classId: string,
-  updates: Partial<Pick<AttendanceClass, 'name' | 'teacherId' | 'teacherName'>>
+  updates: Partial<Pick<AttendanceClass, 'name' | 'teacherId' | 'teacherName' | 'courseId' | 'courseName'>>
 ): Promise<AttendanceClass | null> {
-  const cls = MOCK_CLASSES.find(c => c.id === classId)
-  if (!cls) return null
-  Object.assign(cls, updates)
+  let updatedClass: AttendanceClass | null = null
 
   try {
     const supabase = createAdminClient()
-    await supabase.from('attendance_classes').update({
-      name: updates.name,
-      teacher_id: updates.teacherId,
-      teacher_name: updates.teacherName,
-    }).eq('id', classId)
+    const dbUpdates: any = {}
+    if (updates.name !== undefined) dbUpdates.name = updates.name
+    if (updates.teacherId !== undefined) dbUpdates.teacher_id = updates.teacherId
+    if (updates.teacherName !== undefined) dbUpdates.teacher_name = updates.teacherName
+    if (updates.courseId !== undefined) dbUpdates.course_id = updates.courseId
+    if (updates.courseName !== undefined) dbUpdates.course_name = updates.courseName
+
+    const { data, error } = await supabase
+      .from('attendance_classes')
+      .update(dbUpdates)
+      .eq('id', classId)
+      .select(`*, attendance_students(*), attendance_subjects(*)`)
+      .maybeSingle()
+
+    if (!error && data) {
+      updatedClass = mapDbClass(data)
+    }
   } catch (err) {
     console.warn('Supabase updateClass fallback:', err)
   }
 
+  const cls = MOCK_CLASSES.find(c => c.id === classId)
+  if (cls) {
+    Object.assign(cls, updates)
+    if (!updatedClass) updatedClass = cls
+  }
+
   revalidatePath('/admin/attendance')
   revalidatePath('/teacher/attendance')
-  return cls
+  return updatedClass
 }
 
 export async function deleteClass(classId: string): Promise<boolean> {
-  const idx = MOCK_CLASSES.findIndex(c => c.id === classId)
-  if (idx === -1) return false
-  MOCK_CLASSES.splice(idx, 1)
-
   try {
     const supabase = createAdminClient()
     await supabase.from('attendance_classes').delete().eq('id', classId)
   } catch (err) {
     console.warn('Supabase deleteClass fallback:', err)
+  }
+
+  const idx = MOCK_CLASSES.findIndex(c => c.id === classId)
+  if (idx !== -1) {
+    MOCK_CLASSES.splice(idx, 1)
+  }
+
+  revalidatePath('/admin/attendance')
+  revalidatePath('/teacher/attendance')
+  return true
+}
+
+export async function addClassSubject(
+  classId: string,
+  subject: { id?: string; name: string; code?: string }
+): Promise<boolean> {
+  const subId = subject.id || `sub_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
+  const code = subject.code || subject.name.slice(0, 3).toUpperCase()
+
+  try {
+    const supabase = createAdminClient()
+    await supabase.from('attendance_subjects').upsert({
+      id: subId,
+      class_id: classId,
+      name: subject.name,
+      code,
+    })
+  } catch (err) {
+    console.warn('Supabase addClassSubject fallback:', err)
+  }
+
+  const cls = MOCK_CLASSES.find(c => c.id === classId)
+  if (cls) {
+    if (!cls.subjects.some(s => s.id === subId)) {
+      cls.subjects.push({ id: subId, name: subject.name, code, classId })
+    }
+  }
+
+  revalidatePath('/admin/attendance')
+  revalidatePath('/teacher/attendance')
+  return true
+}
+
+export async function removeClassSubject(classId: string, subjectId: string): Promise<boolean> {
+  try {
+    const supabase = createAdminClient()
+    await supabase.from('attendance_subjects').delete().eq('id', subjectId).eq('class_id', classId)
+  } catch (err) {
+    console.warn('Supabase removeClassSubject fallback:', err)
+  }
+
+  const cls = MOCK_CLASSES.find(c => c.id === classId)
+  if (cls) {
+    cls.subjects = cls.subjects.filter(s => s.id !== subjectId)
   }
 
   revalidatePath('/admin/attendance')
@@ -347,34 +279,62 @@ export async function addClassStudent(
   classId: string,
   student: { id: string; name: string; avatar?: string; rollNumber?: string }
 ): Promise<boolean> {
-  const cls = MOCK_CLASSES.find(c => c.id === classId)
-  if (!cls) return false
-  if (!cls.students.some(s => s.id === student.id)) {
-    const newStu = { ...student, enrolledAt: new Date().toISOString().slice(0, 10) }
-    cls.students.push(newStu)
+  const newStu = { ...student, enrolledAt: new Date().toISOString().slice(0, 10) }
 
-    try {
-      const supabase = createAdminClient()
-      await supabase.from('attendance_students').upsert({
-        id: student.id,
-        class_id: classId,
-        name: student.name,
-        avatar_url: student.avatar,
-        roll_number: student.rollNumber,
-        enrolled_at: newStu.enrolledAt,
-      })
-    } catch (err) {
-      console.warn('Supabase addClassStudent fallback:', err)
-    }
+  try {
+    const supabase = createAdminClient()
+    await supabase.from('attendance_students').upsert({
+      id: student.id,
+      class_id: classId,
+      name: student.name,
+      avatar_url: student.avatar,
+      roll_number: student.rollNumber,
+      enrolled_at: newStu.enrolledAt,
+    })
+  } catch (err) {
+    console.warn('Supabase addClassStudent fallback:', err)
   }
+
+  const cls = MOCK_CLASSES.find(c => c.id === classId)
+  if (cls && !cls.students.some(s => s.id === student.id)) {
+    cls.students.push(newStu)
+  }
+
+  revalidatePath('/admin/attendance')
+  revalidatePath('/teacher/attendance')
   return true
 }
 
-export async function removeClassStudent(classId: string, studentId: string): Promise<boolean> {
-  const cls = MOCK_CLASSES.find(c => c.id === classId)
-  if (!cls) return false
-  cls.students = cls.students.filter(s => s.id !== studentId)
+export async function syncCourseStudentsToClass(classId: string): Promise<{ success: boolean; count: number }> {
+  try {
+    const supabase = createAdminClient()
+    const { data: students } = await supabase
+      .from('Profile')
+      .select('id, full_name, email, avatar_url')
+      .eq('role', 'student')
 
+    if (students && students.length > 0) {
+      const inserts = students.map((s: any, idx: number) => ({
+        id: s.id,
+        class_id: classId,
+        name: s.full_name || s.email?.split('@')[0] || 'Student',
+        avatar_url: s.avatar_url,
+        roll_number: String(101 + idx),
+        enrolled_at: new Date().toISOString().slice(0, 10),
+      }))
+
+      await supabase.from('attendance_students').upsert(inserts, { onConflict: 'id,class_id' })
+      revalidatePath('/admin/attendance')
+      revalidatePath('/teacher/attendance')
+      return { success: true, count: inserts.length }
+    }
+  } catch (err) {
+    console.warn('syncCourseStudentsToClass error:', err)
+  }
+  return { success: false, count: 0 }
+}
+
+export async function removeClassStudent(classId: string, studentId: string): Promise<boolean> {
   try {
     const supabase = createAdminClient()
     await supabase.from('attendance_students').delete().eq('class_id', classId).eq('id', studentId)
@@ -382,15 +342,52 @@ export async function removeClassStudent(classId: string, studentId: string): Pr
     console.warn('Supabase removeClassStudent fallback:', err)
   }
 
+  const cls = MOCK_CLASSES.find(c => c.id === classId)
+  if (cls) {
+    cls.students = cls.students.filter(s => s.id !== studentId)
+  }
+
+  revalidatePath('/admin/attendance')
+  revalidatePath('/teacher/attendance')
   return true
 }
 
 export async function getAttendanceSessions(classId?: string, teacherId?: string): Promise<AttendanceSession[]> {
+  try {
+    const supabase = createAdminClient()
+    let query = supabase.from('attendance_sessions').select('*')
+    if (classId) query = query.eq('class_id', classId)
+    if (teacherId) query = query.eq('teacher_id', teacherId)
+    const { data, error } = await query.order('date', { ascending: false })
+
+    if (!error && data && data.length > 0) {
+      return data.map((d: any) => ({
+        id: d.id,
+        classId: d.class_id,
+        className: d.class_name,
+        subjectId: d.subject_id,
+        subjectName: d.subject_name,
+        date: d.date,
+        teacherId: d.teacher_id,
+        teacherName: d.teacher_name,
+        lockStatus: d.lock_status,
+        lockedAt: d.locked_at,
+        submittedAt: d.submitted_at,
+        totalStudents: d.total_students,
+        presentCount: d.present_count,
+        absentCount: d.absent_count,
+        lateCount: d.late_count,
+        leaveCount: d.leave_count,
+      }))
+    }
+  } catch (err) {
+    console.warn('Supabase getAttendanceSessions fallback:', err)
+  }
+
   let sessions = [...attendanceSessions]
   if (classId) sessions = sessions.filter(s => s.classId === classId)
   if (teacherId) {
     const teacherClassIds = MOCK_CLASSES.filter(c => c.teacherId === teacherId).map(c => c.id)
-    // Also include sessions from placeholder-resolved classes
     const resolvedIds = resolveClassesForTeacher(teacherId).map(c => c.id)
     const allIds = new Set([...teacherClassIds, ...resolvedIds])
     sessions = sessions.filter(s => allIds.has(s.classId))
@@ -403,8 +400,40 @@ export async function getAttendanceForSession(
   subjectId: string,
   date: string
 ): Promise<AttendanceRecord[]> {
+  try {
+    const supabase = createAdminClient()
+    let query = supabase.from('attendance_records').select('*').eq('class_id', classId).eq('date', date)
+    if (subjectId) {
+      query = query.eq('subject_id', subjectId)
+    }
+    const { data, error } = await query
+
+    if (!error && data && data.length > 0) {
+      return data.map((r: any) => ({
+        id: r.id,
+        sessionId: r.session_id,
+        studentId: r.student_id,
+        studentName: r.student_name,
+        studentAvatar: r.student_avatar,
+        classId: r.class_id,
+        subjectId: r.subject_id,
+        subjectName: r.subject_name,
+        date: r.date,
+        status: r.status,
+        notes: r.notes,
+        markedBy: r.marked_by,
+        markedAt: r.marked_at,
+        correctedBy: r.corrected_by,
+        correctedAt: r.corrected_at,
+        isExcused: r.is_excused,
+      }))
+    }
+  } catch (err) {
+    console.warn('Supabase getAttendanceForSession fallback:', err)
+  }
+
   return attendanceRecords.filter(
-    r => r.classId === classId && r.subjectId === subjectId && r.date === date
+    r => r.classId === classId && (!subjectId || r.subjectId === subjectId) && r.date === date
   )
 }
 
@@ -414,67 +443,136 @@ export async function markBulkAttendance(
   date: string,
   teacherId: string,
   records: Array<{ studentId: string; status: AttendanceStatus; notes?: string }>
-): Promise<{ success: boolean; sessionId: string }> {
-  const cls = MOCK_CLASSES.find(c => c.id === classId)
-  const subject = cls?.subjects.find(s => s.id === subjectId)
-  if (!cls || !subject) return { success: false, sessionId: '' }
+): Promise<{ success: boolean; sessionId: string; error?: string }> {
+  // Fetch class either from Supabase or memory
+  let cls: AttendanceClass | undefined = MOCK_CLASSES.find(c => c.id === classId)
+  if (!cls) {
+    try {
+      const supabase = createAdminClient()
+      const { data } = await supabase
+        .from('attendance_classes')
+        .select(`*, attendance_students(*), attendance_subjects(*)`)
+        .eq('id', classId)
+        .maybeSingle()
+      if (data) {
+        cls = mapDbClass(data)
+      }
+    } catch (e) {}
+  }
 
-  const sessionId = `sess_${classId}_${subjectId}_${date}`
+  if (!cls) {
+    return { success: false, sessionId: '', error: 'Class not found.' }
+  }
 
-  // Remove existing records for this session
-  const toRemoveIdxs: number[] = []
-  attendanceRecords.forEach((r, i) => {
-    if (r.sessionId === sessionId) toRemoveIdxs.push(i)
-  })
-  toRemoveIdxs.reverse().forEach(i => attendanceRecords.splice(i, 1))
+  const subject = cls.subjects.find(s => s.id === subjectId) || {
+    id: subjectId || `sub_gen_${classId}`,
+    name: cls.courseName || cls.name || 'Regular Class',
+    code: 'REG',
+    classId
+  }
 
-  // Add new records
-  records.forEach((rec, i) => {
-    const student = cls.students.find(s => s.id === rec.studentId)
-    if (!student) return
-    attendanceRecords.push({
+  const sessionId = `sess_${classId}_${subject.id}_${date}`
+
+  const newRecords: AttendanceRecord[] = records.map((rec, i) => {
+    const student = cls!.students.find(s => s.id === rec.studentId)
+    return {
       id: `rec_${Date.now()}_${i}`,
       sessionId,
       studentId: rec.studentId,
-      studentName: student.name,
-      studentAvatar: student.avatar,
+      studentName: student?.name || 'Student',
+      studentAvatar: student?.avatar,
       classId,
-      subjectId,
+      subjectId: subject.id,
       subjectName: subject.name,
       date,
       status: rec.status,
       notes: rec.notes,
       markedBy: teacherId,
       markedAt: new Date().toISOString(),
-    })
+    }
   })
 
-  // Update / create session summary
-  const existingIdx = attendanceSessions.findIndex(s => s.id === sessionId)
   const newSession: AttendanceSession = {
     id: sessionId,
     classId,
     className: cls.name,
-    subjectId,
+    subjectId: subject.id,
     subjectName: subject.name,
     date,
     teacherId,
     teacherName: cls.teacherName,
     lockStatus: 'open',
     submittedAt: new Date().toISOString(),
-    totalStudents: cls.students.length,
+    totalStudents: records.length || cls.students.length,
     presentCount: records.filter(r => r.status === 'present').length,
     absentCount: records.filter(r => r.status === 'absent').length,
     lateCount: records.filter(r => r.status === 'late').length,
     leaveCount: records.filter(r => r.status === 'leave').length,
   }
 
+  // 1. Persist to Supabase
+  try {
+    const supabase = createAdminClient()
+
+    // Upsert session
+    await supabase.from('attendance_sessions').upsert({
+      id: sessionId,
+      class_id: classId,
+      class_name: cls.name,
+      subject_id: subject.id,
+      subject_name: subject.name,
+      date,
+      teacher_id: teacherId,
+      teacher_name: cls.teacherName,
+      lock_status: 'open',
+      submitted_at: newSession.submittedAt,
+      total_students: newSession.totalStudents,
+      present_count: newSession.presentCount,
+      absent_count: newSession.absentCount,
+      late_count: newSession.lateCount,
+      leave_count: newSession.leaveCount,
+    }, { onConflict: 'class_id,subject_id,date' })
+
+    // Upsert individual records
+    if (newRecords.length > 0) {
+      const dbInserts = newRecords.map(r => ({
+        session_id: sessionId,
+        student_id: r.studentId,
+        student_name: r.studentName,
+        student_avatar: r.studentAvatar,
+        class_id: classId,
+        subject_id: subject.id,
+        subject_name: subject.name,
+        date,
+        status: r.status,
+        notes: r.notes || null,
+        marked_by: teacherId,
+        marked_at: r.markedAt,
+      }))
+
+      await supabase.from('attendance_records').upsert(dbInserts, { onConflict: 'session_id,student_id' })
+    }
+  } catch (err) {
+    console.warn('Supabase markBulkAttendance fallback:', err)
+  }
+
+  // 2. Persist in memory fallback
+  const toRemoveIdxs: number[] = []
+  attendanceRecords.forEach((r, i) => {
+    if (r.sessionId === sessionId) toRemoveIdxs.push(i)
+  })
+  toRemoveIdxs.reverse().forEach(i => attendanceRecords.splice(i, 1))
+  newRecords.forEach(r => attendanceRecords.push(r))
+
+  const existingIdx = attendanceSessions.findIndex(s => s.id === sessionId)
   if (existingIdx >= 0) {
     attendanceSessions[existingIdx] = newSession
   } else {
     attendanceSessions.push(newSession)
   }
 
+  revalidatePath('/teacher/attendance')
+  revalidatePath('/admin/attendance')
   return { success: true, sessionId }
 }
 
@@ -531,7 +629,7 @@ export async function getStudentAttendanceSummary(
 ): Promise<AttendanceSummary | null> {
   let studentName = ''
   let studentAvatar: string | undefined
-  let classes = MOCK_CLASSES
+  let classes = await getAllClasses()
 
   if (classId) {
     classes = classes.filter(c => c.id === classId)
@@ -547,6 +645,19 @@ export async function getStudentAttendanceSummary(
   if (!studentName && records.length > 0) {
     studentName = records[0].studentName
     studentAvatar = records[0].studentAvatar
+  }
+
+  if (!studentName) {
+    try {
+      const supabase = createAdminClient()
+      const { data: p } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', studentId).single()
+      if (p) {
+        studentName = p.full_name || 'Student'
+        studentAvatar = p.avatar_url
+      }
+    } catch {
+      // ignore
+    }
   }
 
   if (!studentName) return null
@@ -640,9 +751,20 @@ export async function getStudentAttendanceHistory(
 }
 
 export async function getAllStudentsSummary(): Promise<AttendanceSummary[]> {
+  const classes = await getAllClasses()
   const studentIds = new Set<string>()
-  for (const cls of MOCK_CLASSES) {
+  for (const cls of classes) {
     for (const stu of cls.students) studentIds.add(stu.id)
+  }
+
+  try {
+    const supabase = createAdminClient()
+    const { data: dbStudents } = await supabase.from('profiles').select('id').eq('role', 'student')
+    if (dbStudents) {
+      for (const s of dbStudents) studentIds.add(s.id)
+    }
+  } catch (err) {
+    console.warn('getAllStudentsSummary error:', err)
   }
 
   const summaries: AttendanceSummary[] = []

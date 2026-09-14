@@ -22,6 +22,7 @@ import { FeeCollectionModal } from './FeeCollectionModal'
 import { FeeReceiptModal } from './FeeReceiptModal'
 import { FeeStructureModal } from './FeeStructureModal'
 import { AssignFeeStructureModal } from './AssignFeeStructureModal'
+import { ReceiptHeaderSettingsModal } from './ReceiptHeaderSettingsModal'
 import {
   Wallet,
   TrendingUp,
@@ -42,6 +43,7 @@ import {
   Filter,
   CreditCard,
   Building,
+  Building2,
   RotateCcw,
   RefreshCw,
   SlidersHorizontal,
@@ -101,6 +103,8 @@ export function AdminFeeDashboard({
 
   const [managingStudent, setManagingStudent] = useState<StudentFeeProfile | null>(null)
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false)
+
+  const [isReceiptHeaderModalOpen, setIsReceiptHeaderModalOpen] = useState(false)
 
   // Notification feedback state
   const [reminderStatus, setReminderStatus] = useState<string>('')
@@ -294,6 +298,14 @@ export function AdminFeeDashboard({
           >
             <Download className="w-3.5 h-3.5" />
             Export Ledger
+          </button>
+          <button
+            onClick={() => setIsReceiptHeaderModalOpen(true)}
+            className="px-3 py-2 text-xs font-semibold text-foreground bg-card hover:bg-muted border border-border rounded-xl transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+            title="Manage official institution name, affiliation, and contact info printed on receipts"
+          >
+            <Building2 className="w-3.5 h-3.5 text-primary" />
+            <span>Receipt Header</span>
           </button>
           <button
             onClick={() => {
@@ -715,13 +727,22 @@ export function AdminFeeDashboard({
                 <h3 className="font-semibold text-foreground text-sm">Official Payment Receipts Ledger</h3>
                 <p className="text-xs text-muted-foreground">Audit trail of all online & counter-recorded fee transactions.</p>
               </div>
-              <button
-                onClick={handleExportCSV}
-                className="px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-xl transition-colors flex items-center gap-1"
-              >
-                <Download className="w-3.5 h-3.5" />
-                Download CSV
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsReceiptHeaderModalOpen(true)}
+                  className="px-3 py-1.5 text-xs font-semibold text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Building2 className="w-3.5 h-3.5 text-primary" />
+                  Customize Receipt Header
+                </button>
+                <button
+                  onClick={handleExportCSV}
+                  className="px-3 py-1.5 text-xs font-medium text-primary bg-primary/10 hover:bg-primary/20 rounded-xl transition-colors flex items-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download CSV
+                </button>
+              </div>
             </div>
 
             <table className="w-full text-xs text-left">
@@ -825,7 +846,28 @@ export function AdminFeeDashboard({
                       {str.frequency}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">{str.courseName} • Batch {str.batchYear}</p>
+                  {str.courseNames && str.courseNames.length > 1 ? (
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
+                          {str.courseNames.length} Courses
+                        </span>
+                        <span>• Batch {str.batchYear}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+                        {str.courseNames.map((cn, i) => (
+                          <span
+                            key={i}
+                            className="text-[10px] px-2 py-0.5 rounded-md bg-muted text-foreground/85 font-medium border border-border/60"
+                          >
+                            {cn}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">{str.courseName} • Batch {str.batchYear}</p>
+                  )}
 
                   <div className="mt-4 pt-3 border-t border-border space-y-1.5 text-xs">
                     {str.items.map((item, idx) => (
@@ -1006,6 +1048,12 @@ export function AdminFeeDashboard({
           setReminderStatus(`Fee structure assigned to ${updatedProfile.studentName}`)
           setTimeout(() => setReminderStatus(''), 4000)
         }}
+      />
+
+      {/* 5. Admin Receipt Header Settings Modal */}
+      <ReceiptHeaderSettingsModal
+        isOpen={isReceiptHeaderModalOpen}
+        onClose={() => setIsReceiptHeaderModalOpen(false)}
       />
     </div>
   )

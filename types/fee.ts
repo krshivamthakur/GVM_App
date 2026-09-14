@@ -27,6 +27,8 @@ export interface FeeStructure {
   name: string
   courseId: string
   courseName: string
+  courseIds?: string[]
+  courseNames?: string[]
   batchYear: string
   frequency: BillingFrequency
   totalAmount: number
@@ -145,4 +147,28 @@ export interface FeeNotificationLog {
   dueDate: string
   channel: 'email' | 'sms' | 'in_app'
   sentAt: string
+}
+
+export interface FeeReceiptInstitutionSettings {
+  instituteName: string
+  departmentName: string
+  referencePrefix: string
+  addressLine: string
+  contactEmail: string
+  contactPhone?: string
+  logoUrl?: string
+  authorizedSignatoryTitle?: string
+  footerNote?: string
+}
+
+export const DEFAULT_RECEIPT_SETTINGS: FeeReceiptInstitutionSettings = {
+  instituteName: 'GVM Institute of Technology & Science',
+  departmentName: 'Department of Academic Accounts & Bursar',
+  referencePrefix: 'Ref: GVM-EDU-2026',
+  addressLine: 'Campus Road, Tech City',
+  contactEmail: 'accounts@gvm.edu',
+  contactPhone: '+91 98765 43210',
+  logoUrl: '',
+  authorizedSignatoryTitle: 'Accounts Officer / Bursar',
+  footerNote: 'This is an official computer-generated fee payment receipt. No physical signature required.'
 }

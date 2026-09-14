@@ -19,39 +19,14 @@ const DELETED_CONVERSATIONS_KEY = 'gvm_chat_deleted_conversations_v5'
 
 export const SYSTEM_CHANNELS: ChatConversation[] = [
   {
-    id: 'conv_announcements',
-    title: '#announcements-hub',
-    type: 'channel',
-    avatar: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=120&auto=format&fit=crop&q=80',
-    is_locked: true,
-    is_pinned: true,
-    pinned_notice: '📢 Official academic notices, examination alerts, and masterclass schedules.',
-    last_message: 'Welcome to GVM EduLMS. Check our schedule for upcoming live sessions.',
-    last_message_time: '10:00 AM',
-    unread_count: 0,
-    status: 'online'
-  },
-  {
     id: 'conv_physics_cohort',
-    title: '#physics-cohort-2026',
+    title: '#pcm-class-11th',
     type: 'group',
     avatar: 'https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?w=120&auto=format&fit=crop&q=80',
     is_locked: false,
     pinned_notice: '⚡ Weekly discussion thread for Physics problem sets, derivations, and labs.',
-    last_message: 'Has anyone finished Chapter 3 Electromagnetism numerical 14?',
-    last_message_time: 'Yesterday',
-    unread_count: 1,
-    status: 'online'
-  },
-  {
-    id: 'conv_java_guild',
-    title: '#java-developers-guild',
-    type: 'group',
-    avatar: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=120&auto=format&fit=crop&q=80',
-    is_locked: false,
-    pinned_notice: '☕ Java algorithms, OOP paradigms, JVM architecture, and coding doubts.',
-    last_message: 'Checkout the new thread on Memory Management & GC logs.',
-    last_message_time: '2 days ago',
+    last_message: 'Active',
+    last_message_time: 'Active',
     unread_count: 0,
     status: 'online'
   },
@@ -62,104 +37,26 @@ export const SYSTEM_CHANNELS: ChatConversation[] = [
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
     is_locked: false,
     pinned_notice: '💬 24/7 Academic counselling, technical assistance, and course queries.',
-    last_message: 'Hello! How can the academic support team assist you today?',
+    last_message: 'Active',
+    last_message_time: 'Active',
+    unread_count: 0,
+    status: 'online'
+  },
+  {
+    id: 'conv_1789209625779',
+    title: '#pcb-class-12th',
+    type: 'group',
+    avatar: 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?w=120&auto=format&fit=crop&q=80',
+    is_locked: false,
+    pinned_notice: 'About class 12th stream pcb notification and class',
+    last_message: 'Active',
     last_message_time: 'Active',
     unread_count: 0,
     status: 'online'
   }
 ]
 
-export const SEED_MESSAGES: Record<string, ChatMessage[]> = {
-  conv_announcements: [
-    {
-      id: 'msg_ann_1',
-      conversation_id: 'conv_announcements',
-      sender_id: 'admin_sys',
-      sender_name: 'Sumit Saurav (Admin)',
-      sender_role: 'admin',
-      sender_avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80',
-      text: '🚀 Welcome to the new semester at GVM EduLMS! All lecture notes and micro-learning shorts have been updated in your dashboard.',
-      type: 'text',
-      is_pinned: true,
-      status: 'read',
-      created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-      reactions: [
-        { emoji: '🔥', count: 12, users: ['u1', 'u2', 'u3'] },
-        { emoji: '👏', count: 8, users: ['u4', 'u5'] }
-      ]
-    },
-    {
-      id: 'msg_ann_2',
-      conversation_id: 'conv_announcements',
-      sender_id: 'admin_sys',
-      sender_name: 'Sumit Saurav (Admin)',
-      sender_role: 'admin',
-      sender_avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80',
-      text: 'Please review the Academic Honesty Guidelines. Inappropriate language or spam in study groups will result in moderation strikes.',
-      type: 'text',
-      status: 'read',
-      created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-      reactions: [
-        { emoji: '👍', count: 15, users: ['u1', 'u2'] }
-      ]
-    }
-  ],
-  conv_physics_cohort: [
-    {
-      id: 'msg_phy_1',
-      conversation_id: 'conv_physics_cohort',
-      sender_id: '00000000-0000-0000-0000-789003538483',
-      sender_name: 'samir (Instructor)',
-      sender_role: 'teacher',
-      sender_avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-      text: 'Welcome Physics scholars! Today we delve into Electromagnetism and Maxwell equations. Feel free to drop queries here anytime.',
-      type: 'text',
-      is_pinned: true,
-      status: 'read',
-      created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-      reactions: [{ emoji: '⚡', count: 6, users: ['u1'] }]
-    },
-    {
-      id: 'msg_phy_2',
-      conversation_id: 'conv_physics_cohort',
-      sender_id: 'student_harsh',
-      sender_name: 'harsh',
-      sender_role: 'student',
-      text: 'Has anyone finished Chapter 3 Electromagnetism numerical 14?',
-      type: 'text',
-      status: 'read',
-      created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-      reactions: [{ emoji: '💡', count: 2, users: ['u3'] }]
-    }
-  ],
-  conv_java_guild: [
-    {
-      id: 'msg_jav_1',
-      conversation_id: 'conv_java_guild',
-      sender_id: 'admin_sys',
-      sender_name: 'Sumit Saurav (Admin)',
-      sender_role: 'admin',
-      text: 'Checkout the new thread on Memory Management & GC logs. Great discussion on ZGC vs G1GC!',
-      type: 'text',
-      status: 'read',
-      created_at: new Date(Date.now() - 3600000 * 48).toISOString()
-    }
-  ],
-  conv_support_desk: [
-    {
-      id: 'msg_sup_1',
-      conversation_id: 'conv_support_desk',
-      sender_id: 'support_agent',
-      sender_name: 'GVM Support Bot',
-      sender_role: 'support',
-      sender_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-      text: '👋 Welcome to Student & Teacher Support. Our team is available 24/7. Type your query or attach relevant screenshots.',
-      type: 'text',
-      status: 'read',
-      created_at: new Date(Date.now() - 3600000 * 72).toISOString()
-    }
-  ]
-}
+export const SEED_MESSAGES: Record<string, ChatMessage[]> = {}
 
 export function deduplicateMessagesList(messages: ChatMessage[]): ChatMessage[] {
   if (!messages || messages.length === 0) return []
@@ -230,6 +127,24 @@ export class ChatStateManager {
         'gvm_unified_chat_v3'
       ]
 
+      const DEMO_MSG_IDS = new Set([
+        'msg_ann_1',
+        'msg_ann_2',
+        'msg_phy_1',
+        'msg_phy_2',
+        'msg_jav_1',
+        'msg_sup_1',
+        'ann_1'
+      ])
+
+      const DEMO_CONV_IDS = new Set([
+        'conv_announcements',
+        'conv_java_guild',
+        'group_announcements',
+        'conv_1789192947216',
+        'conv_1789313077873'
+      ])
+
       for (const sourceKey of storageSources) {
         const rawStored = localStorage.getItem(sourceKey)
         if (!rawStored) continue
@@ -238,20 +153,25 @@ export class ChatStateManager {
           const parsed = JSON.parse(rawStored)
           if (parsed.conversations) {
             parsed.conversations.forEach((c: ChatConversation) => {
-              if (!this.deletedConversationIds.has(c.id) && !this.conversations.has(c.id)) {
+              if (
+                !this.deletedConversationIds.has(c.id) &&
+                !DEMO_CONV_IDS.has(c.id) &&
+                !this.conversations.has(c.id)
+              ) {
                 this.conversations.set(c.id, c)
               }
             })
           }
           if (parsed.messages) {
             Object.keys(parsed.messages).forEach((convId) => {
-              if (this.deletedConversationIds.has(convId)) return
+              if (this.deletedConversationIds.has(convId) || DEMO_CONV_IDS.has(convId)) return
               const rawMsgs = parsed.messages[convId] || []
               if (rawMsgs.length === 0) return
 
-              // Strictly remove simulated bot/auto-reply messages
+              // Strictly remove simulated and demo messages
               const cleanMsgs = rawMsgs.filter((m: ChatMessage) => {
                 if (!m || !m.id || !m.text) return false
+                if (DEMO_MSG_IDS.has(m.id) || m.id.startsWith('msg_rec_')) return false
                 if (
                   m.text.includes('Thanks for reaching out! I am reviewing your query') ||
                   m.text.includes('Let me verify the lecture notes and share the derivation') ||
@@ -274,29 +194,10 @@ export class ChatStateManager {
         }
       }
 
-      // If a conversation has a last_message snippet (e.g. "hello test 5") but messages is currently empty, recover it!
-      this.conversations.forEach((conv, convId) => {
-        const existingMsgs = this.messages.get(convId) || []
-        if (
-          existingMsgs.length === 0 &&
-          conv.last_message &&
-          !conv.last_message.startsWith('Start conversation with') &&
-          conv.last_message !== 'Attachment' &&
-          conv.last_message !== 'Conversation established'
-        ) {
-          const recovered: ChatMessage = {
-            id: `msg_rec_${convId}_1`,
-            conversation_id: convId,
-            sender_id: conv.other_user_id || 'peer',
-            sender_name: conv.title || 'Participant',
-            sender_role: conv.other_user_role || 'member',
-            text: conv.last_message,
-            type: 'text',
-            status: 'delivered',
-            created_at: new Date().toISOString()
-          }
-          this.messages.set(convId, [recovered])
-        }
+      // Explicitly purge demo conversations and demo messages
+      DEMO_CONV_IDS.forEach((dId) => {
+        this.conversations.delete(dId)
+        this.messages.delete(dId)
       })
 
       // Purge legacy storage keys
@@ -516,12 +417,75 @@ export class ChatStateManager {
       }
     })
 
+    // 5. Ensure group/channel conversations have participants initialized if empty
+    if (profiles && profiles.length > 0) {
+      Array.from(this.conversations.values()).forEach((c) => {
+        if (c.type === 'group' || c.type === 'channel' || c.type === 'support') {
+          if (!c.participants || c.participants.length === 0) {
+            c.participants = profiles.map((p, idx) => ({
+              id: `part_${c.id}_${p.id || idx}`,
+              conversation_id: c.id,
+              user_id: p.id,
+              user_name: p.full_name || p.email.split('@')[0],
+              user_role: p.role,
+              user_avatar: p.avatar_url,
+              user_email: p.email,
+              role: p.role === 'admin' ? 'admin' : p.role === 'teacher' ? 'moderator' : 'member',
+              is_muted: false,
+              joined_at: p.created_at || new Date().toISOString()
+            }))
+          }
+        }
+      })
+    }
+
     this.saveToStorage()
     return Array.from(this.conversations.values())
   }
 
+  public getLatestTimestamp(conversationId: string): number {
+    const msgs = this.messages.get(conversationId)
+    if (msgs && msgs.length > 0) {
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        const m = msgs[i]
+        if (m && m.created_at) {
+          const t = new Date(m.created_at).getTime()
+          if (!isNaN(t) && t > 0) return t
+        }
+      }
+    }
+    const conv = this.conversations.get(conversationId)
+    if (conv?.updated_at) {
+      const t = new Date(conv.updated_at).getTime()
+      if (!isNaN(t) && t > 0) return t
+    }
+    if (conv?.created_at) {
+      const t = new Date(conv.created_at).getTime()
+      if (!isNaN(t) && t > 0) return t
+    }
+    return 0
+  }
+
   public getConversations(): ChatConversation[] {
-    return Array.from(this.conversations.values())
+    const list = Array.from(this.conversations.values())
+    return list.sort((a, b) => {
+      const timeA = this.getLatestTimestamp(a.id) || (a.updated_at ? new Date(a.updated_at).getTime() : 0)
+      const timeB = this.getLatestTimestamp(b.id) || (b.updated_at ? new Date(b.updated_at).getTime() : 0)
+      return timeB - timeA
+    })
+  }
+
+  public markAsRead(conversationId: string): boolean {
+    const conv = this.conversations.get(conversationId)
+    if (conv) {
+      if ((conv.unread_count || 0) > 0) {
+        conv.unread_count = 0
+        this.conversations.set(conversationId, conv)
+        this.saveToStorage()
+        return true
+      }
+    }
+    return false
   }
 
   public getMessages(conversationId: string): ChatMessage[] {
@@ -529,7 +493,7 @@ export class ChatStateManager {
     return deduplicateMessagesList(list)
   }
 
-  public addMessage(msg: ChatMessage): ChatMessage {
+  public addMessage(msg: ChatMessage, activeConversationId?: string): ChatMessage {
     let list = this.messages.get(msg.conversation_id) || []
     
     // Check if an identical message is already present
@@ -548,11 +512,15 @@ export class ChatStateManager {
       this.messages.set(msg.conversation_id, list)
     }
 
-    // Update conversation last message snippet
+    // Update conversation last message snippet and timestamp
     const conv = this.conversations.get(msg.conversation_id)
     if (conv) {
       conv.last_message = msg.type === 'text' ? msg.text : `[${msg.type.toUpperCase()}] ${msg.media_name || 'Attachment'}`
       conv.last_message_time = 'Just now'
+      conv.updated_at = msg.created_at || new Date().toISOString()
+      if (activeConversationId === msg.conversation_id) {
+        conv.unread_count = 0
+      }
       this.conversations.set(msg.conversation_id, conv)
     }
 
@@ -560,7 +528,10 @@ export class ChatStateManager {
     return msg
   }
 
-  public mergeServerMessages(data: ChatMessage[] | Record<string, ChatMessage[]>): boolean {
+  public mergeServerMessages(
+    data: ChatMessage[] | Record<string, ChatMessage[]>,
+    options?: { activeConvId?: string; currentUserId?: string }
+  ): boolean {
     let hasNew = false
     const msgList: ChatMessage[] = Array.isArray(data)
       ? data
@@ -579,9 +550,11 @@ export class ChatStateManager {
         return sameSender && sameText && sameType && closeTime
       })
 
+      let isNewMsg = false
       if (existingIdx === -1) {
         list.push(m)
         hasNew = true
+        isNewMsg = true
       } else {
         // Update optimistic/existing message with server data
         list[existingIdx] = { ...list[existingIdx], ...m, id: m.id }
@@ -595,6 +568,13 @@ export class ChatStateManager {
         const last = list[list.length - 1]
         conv.last_message = last.text || 'Attachment'
         conv.last_message_time = 'Active'
+        conv.updated_at = last.created_at || new Date().toISOString()
+
+        if (options?.activeConvId && conv.id === options.activeConvId) {
+          conv.unread_count = 0
+        } else if (isNewMsg && options?.currentUserId && m.sender_id !== options.currentUserId) {
+          conv.unread_count = (conv.unread_count || 0) + 1
+        }
       }
     })
 
@@ -602,6 +582,78 @@ export class ChatStateManager {
       this.saveToStorage()
     }
     return hasNew
+  }
+
+  /**
+   * Merges server-side channel/group metadata (title, is_locked, pinned_notice) into
+   * the local conversation store. This propagates admin changes globally to all views.
+   * Returns true if any conversation was actually updated.
+   */
+  public mergeServerConversations(serverConvs: ChatConversation[]): boolean {
+    if (!serverConvs) return false
+    let hasChanges = false
+    const serverConvIds = new Set(serverConvs.map((s) => s.id))
+
+    // 1. Prune any group / channel / support conversation that was deleted from the server
+    this.conversations.forEach((conv, id) => {
+      if ((conv.type === 'group' || conv.type === 'channel' || conv.type === 'support') && !serverConvIds.has(id)) {
+        this.conversations.delete(id)
+        this.messages.delete(id)
+        this.deletedConversationIds.add(id)
+        hasChanges = true
+      }
+    })
+
+    // 2. Insert or update server conversations
+    serverConvs.forEach((serverConv) => {
+      const local = this.conversations.get(serverConv.id)
+      if (local) {
+        // Only update metadata fields — never overwrite type, messages, or direct-chat data
+        let changed = false
+        if (serverConv.title && serverConv.title !== local.title) {
+          local.title = serverConv.title
+          changed = true
+        }
+        if (serverConv.is_locked !== undefined && serverConv.is_locked !== local.is_locked) {
+          local.is_locked = serverConv.is_locked
+          changed = true
+        }
+        if (serverConv.pinned_notice !== undefined && serverConv.pinned_notice !== local.pinned_notice) {
+          local.pinned_notice = serverConv.pinned_notice
+          changed = true
+        }
+        if (serverConv.avatar && serverConv.avatar !== local.avatar) {
+          local.avatar = serverConv.avatar
+          changed = true
+        }
+        if (changed) {
+          local.updated_at = serverConv.updated_at || new Date().toISOString()
+          this.conversations.set(serverConv.id, local)
+          hasChanges = true
+        }
+      } else {
+        // New conversation directly from database
+        this.conversations.set(serverConv.id, {
+          id: serverConv.id,
+          title: serverConv.title,
+          type: serverConv.type || 'group',
+          avatar: serverConv.avatar || 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=120&auto=format&fit=crop&q=80',
+          is_locked: !!serverConv.is_locked,
+          pinned_notice: serverConv.pinned_notice,
+          last_message: serverConv.last_message || 'Active',
+          last_message_time: serverConv.last_message_time || 'Active',
+          unread_count: 0,
+          created_at: serverConv.created_at,
+          updated_at: serverConv.updated_at
+        })
+        hasChanges = true
+      }
+    })
+
+    if (hasChanges) {
+      this.saveToStorage()
+    }
+    return hasChanges
   }
 
   public editMessage(conversationId: string, messageId: string, newText: string): boolean {
@@ -926,5 +978,157 @@ export class ChatStateManager {
       this.messages.set(channel.id, [...(SEED_MESSAGES[channel.id] || [])])
     })
     this.saveToStorage()
+  }
+
+  // Group Member Management Methods
+  public getGroupParticipants(conversationId: string): ChatParticipant[] {
+    const conv = this.conversations.get(conversationId)
+    return conv?.participants || []
+  }
+
+  public ensureGroupParticipants(conversationId: string, availableProfiles: Profile[]): ChatParticipant[] {
+    const conv = this.conversations.get(conversationId)
+    if (!conv) return []
+
+    if (conv.participants && conv.participants.length > 0) {
+      return conv.participants
+    }
+
+    const defaultParticipants: ChatParticipant[] = availableProfiles.map((p, idx) => ({
+      id: `part_${conversationId}_${p.id || idx}`,
+      conversation_id: conversationId,
+      user_id: p.id,
+      user_name: p.full_name || p.email.split('@')[0],
+      user_role: p.role,
+      user_avatar: p.avatar_url,
+      user_email: p.email,
+      role: p.role === 'admin' ? 'admin' : p.role === 'teacher' ? 'moderator' : 'member',
+      is_muted: false,
+      joined_at: p.created_at || new Date().toISOString()
+    }))
+
+    conv.participants = defaultParticipants
+    this.saveToStorage()
+    return defaultParticipants
+  }
+
+  public addGroupParticipant(
+    conversationId: string,
+    user: {
+      id: string
+      name: string
+      email?: string
+      role?: string
+      avatar?: string | null
+    },
+    groupRole: 'admin' | 'moderator' | 'member' = 'member',
+    addedByName?: string
+  ): ChatParticipant | null {
+    const conv = this.conversations.get(conversationId)
+    if (!conv) return null
+
+    if (!conv.participants) {
+      conv.participants = []
+    }
+
+    if (conv.participants.some((p) => p.user_id === user.id)) {
+      return null
+    }
+
+    const newParticipant: ChatParticipant = {
+      id: `part_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      conversation_id: conversationId,
+      user_id: user.id,
+      user_name: user.name || user.email || 'Member',
+      user_role: user.role || 'student',
+      user_avatar: user.avatar,
+      user_email: user.email,
+      role: groupRole,
+      is_muted: false,
+      joined_at: new Date().toISOString()
+    }
+
+    conv.participants.push(newParticipant)
+    conv.updated_at = new Date().toISOString()
+
+    this.addMessage({
+      id: `sys_join_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+      conversation_id: conversationId,
+      sender_id: 'system',
+      sender_name: 'System',
+      sender_role: 'system',
+      text: `${addedByName ? `${addedByName} added ` : ''}${newParticipant.user_name} to the channel.`,
+      type: 'system',
+      status: 'read',
+      created_at: new Date().toISOString()
+    })
+
+    this.saveToStorage()
+    return newParticipant
+  }
+
+  public removeGroupParticipant(
+    conversationId: string,
+    userId: string,
+    removedByName?: string
+  ): boolean {
+    const conv = this.conversations.get(conversationId)
+    if (!conv || !conv.participants) return false
+
+    const target = conv.participants.find((p) => p.user_id === userId)
+    if (!target) return false
+
+    conv.participants = conv.participants.filter((p) => p.user_id !== userId)
+    conv.updated_at = new Date().toISOString()
+
+    this.addMessage({
+      id: `sys_leave_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+      conversation_id: conversationId,
+      sender_id: 'system',
+      sender_name: 'System',
+      sender_role: 'system',
+      text: `${removedByName ? `${removedByName} removed ` : ''}${target.user_name} from the channel.`,
+      type: 'system',
+      status: 'read',
+      created_at: new Date().toISOString()
+    })
+
+    this.saveToStorage()
+    return true
+  }
+
+  public updateGroupParticipantRole(
+    conversationId: string,
+    userId: string,
+    newRole: 'admin' | 'moderator' | 'member'
+  ): boolean {
+    const conv = this.conversations.get(conversationId)
+    if (!conv || !conv.participants) return false
+
+    const participant = conv.participants.find((p) => p.user_id === userId)
+    if (!participant) return false
+
+    participant.role = newRole
+    conv.updated_at = new Date().toISOString()
+
+    this.saveToStorage()
+    return true
+  }
+
+  public toggleGroupParticipantMute(
+    conversationId: string,
+    userId: string
+  ): boolean {
+    const conv = this.conversations.get(conversationId)
+    if (!conv || !conv.participants) return false
+
+    const participant = conv.participants.find((p) => p.user_id === userId)
+    if (!participant) return false
+
+    participant.is_muted = !participant.is_muted
+    conv.updated_at = new Date().toISOString()
+
+    this.saveToStorage()
+    return Boolean(participant.is_muted)
   }
 }

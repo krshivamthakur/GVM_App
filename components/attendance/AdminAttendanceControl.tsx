@@ -51,6 +51,7 @@ import {
   deleteClass,
   addClassStudent,
   removeClassStudent,
+  addClassSubject,
   type TeacherOption,
   type CourseOption,
 } from '@/actions/attendance-actions'
@@ -456,11 +457,13 @@ export function AdminAttendanceControl({
                     if (editingClass) {
                       await updateClass(editingClass.id, {
                         name: classForm.name,
+                        courseId: resolvedCourseId,
+                        courseName: resolvedCourseName,
                         teacherId: resolvedTeacherId,
                         teacherName: resolvedTeacherName,
                       })
                       setClasses(prev => prev.map(c =>
-                        c.id === editingClass.id ? { ...c, name: classForm.name, teacherName: resolvedTeacherName, teacherId: resolvedTeacherId, courseName: resolvedCourseName } : c
+                        c.id === editingClass.id ? { ...c, name: classForm.name, teacherName: resolvedTeacherName, teacherId: resolvedTeacherId, courseName: resolvedCourseName, courseId: resolvedCourseId } : c
                       ))
                     } else {
                       const newCls = await createClass({
@@ -585,7 +588,7 @@ export function AdminAttendanceControl({
                           />
                           <button
                             disabled={!subjectForm.name.trim()}
-                            onClick={() => {
+                            onClick={async () => {
                               if (!subjectForm.name.trim()) return
                               const newSub: AttendanceSubject = {
                                 id: `sub_${Date.now()}`,
@@ -593,6 +596,7 @@ export function AdminAttendanceControl({
                                 code: subjectForm.code || subjectForm.name.slice(0,3).toUpperCase(),
                                 classId: cls.id,
                               }
+                              await addClassSubject(cls.id, newSub)
                               setClasses(prev => prev.map(c =>
                                 c.id === cls.id ? { ...c, subjects: [...c.subjects, newSub] } : c
                               ))

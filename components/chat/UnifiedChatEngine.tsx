@@ -17,8 +17,10 @@ import {
   getAllRecentServerMessagesAction,
   deleteServerConversationAction,
   updateServerConversationAction,
-  createServerConversationAction
+  createServerConversationAction,
+  getServerConversationsAction
 } from '@/actions/chat-actions'
+import { AdminGroupMembersModal } from '@/components/admin/AdminGroupMembersModal'
 import { formatDisplayDate, formatImageUrl } from '@/lib/utils'
 import {
   MessageSquare,
@@ -417,6 +419,7 @@ export function UnifiedChatEngine({
   const [manageGroupNotice, setManageGroupNotice] = useState('')
   const [manageGroupIsLocked, setManageGroupIsLocked] = useState(false)
   const [manageGroupAvatar, setManageGroupAvatar] = useState('')
+  const [managingGroupMembersConv, setManagingGroupMembersConv] = useState<ChatConversation | null>(null)
 
   // Delete Group Confirm Modal state
   const [showDeleteGroupModal, setShowDeleteGroupModal] = useState<ChatConversation | null>(null)
@@ -486,6 +489,12 @@ export function UnifiedChatEngine({
   useEffect(() => {
     if (!activeConvId) return
 
+    // Immediately mark active conversation as read
+    chatStore.markAsRead(activeConvId)
+    setConversations((prev) =>
+      prev.map((c) => (c.id === activeConvId ? { ...c, unread_count: 0 } : c))
+    )
+
     // Immediately load from local store
     const localMsgs = chatStore.getMessages(activeConvId)
     setMessages(localMsgs)
@@ -495,7 +504,10 @@ export function UnifiedChatEngine({
     getServerMessagesAction(activeConvId)
       .then((serverMsgs) => {
         if (serverMsgs && serverMsgs.length > 0) {
-          const hasNew = chatStore.mergeServerMessages(serverMsgs)
+          const hasNew = chatStore.mergeServerMessages(serverMsgs, {
+            activeConvId,
+            currentUserId: user?.id
+          })
           if (hasNew) {
             setMessages([...chatStore.getMessages(activeConvId)])
             setConversations([...chatStore.getConversations()])
@@ -510,7 +522,10 @@ export function UnifiedChatEngine({
       getServerMessagesAction(activeConvId)
         .then((serverMsgs) => {
           if (serverMsgs && serverMsgs.length > 0) {
-            const hasNew = chatStore.mergeServerMessages(serverMsgs)
+            const hasNew = chatStore.mergeServerMessages(serverMsgs, {
+              activeConvId,
+              currentUserId: user?.id
+            })
             if (hasNew) {
               setMessages([...chatStore.getMessages(activeConvId)])
               setConversations([...chatStore.getConversations()])
@@ -522,7 +537,32 @@ export function UnifiedChatEngine({
     }, 2000)
 
     return () => clearInterval(pollTimer)
-  }, [activeConvId, chatStore])
+  }, [activeConvId, chatStore, user?.id])
+
+  // 2b. Periodically poll all channels so incoming messages in other rooms sort to top with badge
+  useEffect(() => {
+    const pollAllChannels = () => {
+      getAllRecentServerMessagesAction()
+        .then((grouped) => {
+          if (grouped && Object.keys(grouped).length > 0) {
+            const hasNew = chatStore.mergeServerMessages(grouped, {
+              activeConvId,
+              currentUserId: user?.id
+            })
+            if (hasNew) {
+              setConversations([...chatStore.getConversations()])
+              if (activeConvId) {
+                setMessages([...chatStore.getMessages(activeConvId)])
+              }
+            }
+          }
+        })
+        .catch(() => {})
+    }
+
+    const timer = setInterval(pollAllChannels, 5000)
+    return () => clearInterval(timer)
+  }, [activeConvId, user?.id, chatStore])
 
   // 3. Real-time live synchronization across accounts & browser windows
   useEffect(() => {
@@ -542,6 +582,28 @@ export function UnifiedChatEngine({
       window.removeEventListener('gvm_chat_update', handleSync)
     }
   }, [activeConvId, chatStore])
+
+  // 4. Poll server for channel metadata changes (rename, lock, notice) every 10 seconds
+  //    This ensures admin changes propagate globally to all connected users/views.
+  useEffect(() => {
+    const syncChannelMeta = () => {
+      getServerConversationsAction()
+        .then((serverConvs) => {
+          if (serverConvs && serverConvs.length > 0) {
+            const hasChanges = chatStore.mergeServerConversations(serverConvs)
+            if (hasChanges) {
+              setConversations([...chatStore.getConversations()])
+            }
+          }
+        })
+        .catch(() => {})
+    }
+
+    // Run once immediately on mount, then every 10 seconds
+    syncChannelMeta()
+    const channelMetaTimer = setInterval(syncChannelMeta, 10000)
+    return () => clearInterval(channelMetaTimer)
+  }, [chatStore])
 
   useEffect(() => {
     if (initialActiveConvId) {
@@ -564,7 +626,7 @@ export function UnifiedChatEngine({
   const filteredConversations = useMemo(() => {
     const seenDirectTargets = new Set<string>()
 
-    return conversations.filter((c) => {
+    const filtered = conversations.filter((c) => {
       // Exclude self user in direct chats
       if (c.type === 'direct') {
         if (user?.id && c.other_user_id === user.id) return false
@@ -594,7 +656,14 @@ export function UnifiedChatEngine({
       }
       return true
     })
-  }, [conversations, filterTab, searchQuery, user?.id, user?.email])
+
+    // Always sort so that conversation with the most recent message / activity comes at the TOP
+    return filtered.sort((a, b) => {
+      const timeA = chatStore.getLatestTimestamp(a.id) || (a.updated_at ? new Date(a.updated_at).getTime() : 0) || (a.created_at ? new Date(a.created_at).getTime() : 0)
+      const timeB = chatStore.getLatestTimestamp(b.id) || (b.updated_at ? new Date(b.updated_at).getTime() : 0) || (b.created_at ? new Date(b.created_at).getTime() : 0)
+      return timeB - timeA
+    })
+  }, [conversations, filterTab, searchQuery, user?.id, user?.email, chatStore, messages])
 
   // Filtered and deduplicated messages in current chat
   const displayedMessages = useMemo(() => {
@@ -677,7 +746,7 @@ export function UnifiedChatEngine({
       created_at: new Date().toISOString()
     }
 
-    chatStore.addMessage(newMsg)
+    chatStore.addMessage(newMsg, currentConversation.id)
     setMessages([...chatStore.getMessages(currentConversation.id)])
     setConversations([...chatStore.getConversations()])
     setInputText('')
@@ -701,7 +770,10 @@ export function UnifiedChatEngine({
       senderAvatar: user?.avatar_url || undefined
     }).then((res) => {
       if (res?.message) {
-        chatStore.mergeServerMessages([res.message])
+        chatStore.mergeServerMessages([res.message], {
+          activeConvId: currentConversation.id,
+          currentUserId: user?.id
+        })
         setMessages([...chatStore.getMessages(currentConversation.id)])
       }
     }).catch((err) => {
@@ -744,7 +816,7 @@ export function UnifiedChatEngine({
       created_at: new Date().toISOString()
     }
 
-    chatStore.addMessage(attachmentMsg)
+    chatStore.addMessage(attachmentMsg, currentConversation.id)
     setMessages([...chatStore.getMessages(currentConversation.id)])
     setConversations([...chatStore.getConversations()])
     scrollToBottom()
@@ -803,7 +875,7 @@ export function UnifiedChatEngine({
       created_at: new Date().toISOString()
     }
 
-    chatStore.addMessage(voiceMsg)
+    chatStore.addMessage(voiceMsg, currentConversation.id)
     setMessages([...chatStore.getMessages(currentConversation.id)])
     setConversations([...chatStore.getConversations()])
     setVoiceSeconds(0)
@@ -937,6 +1009,7 @@ export function UnifiedChatEngine({
         isLocked: updatedConv.is_locked,
         avatar: updatedConv.avatar || undefined
       }).catch(() => {})
+      window.dispatchEvent(new CustomEvent('gvm_chat_update'))
     }
 
     setShowManageGroupModal(false)
@@ -947,6 +1020,7 @@ export function UnifiedChatEngine({
   const handleConfirmDeleteGroup = (convToDelete: ChatConversation) => {
     chatStore.deleteConversation(convToDelete.id)
     deleteServerConversationAction(convToDelete.id).catch(() => {})
+    window.dispatchEvent(new CustomEvent('gvm_chat_update'))
 
     const remaining = chatStore.getConversations()
     setConversations([...remaining])
@@ -1150,6 +1224,10 @@ export function UnifiedChatEngine({
                     onClick={() => {
                       setActiveConvId(conv.id)
                       setShowMobileList(false)
+                      chatStore.markAsRead(conv.id)
+                      setConversations((prev) =>
+                        prev.map((c) => (c.id === conv.id ? { ...c, unread_count: 0 } : c))
+                      )
                     }}
                     className={`p-3 flex items-center gap-3 cursor-pointer transition-colors relative group ${
                       isActive
@@ -1217,7 +1295,7 @@ export function UnifiedChatEngine({
                         <p className="text-[11px] text-muted-foreground truncate max-w-[180px]">
                           {conv.last_message || 'Start conversation...'}
                         </p>
-                        {conv.unread_count && conv.unread_count > 0 ? (
+                        {!isActive && conv.unread_count && conv.unread_count > 0 ? (
                           <span className="px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[9px] font-bold">
                             {conv.unread_count}
                           </span>
@@ -1296,6 +1374,20 @@ export function UnifiedChatEngine({
                   >
                     <Search className="w-4 h-4" />
                   </button>
+
+                  {/* Manage Group Members Button (Admins & Teachers) */}
+                  {(portalRole === 'admin' || portalRole === 'teacher') && currentConversation.type !== 'direct' && (
+                    <button
+                      onClick={() => setManagingGroupMembersConv(currentConversation)}
+                      title="Manage Group Members"
+                      className="px-2.5 py-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20 transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      <span className="hidden lg:inline">
+                        Members ({chatStore.getGroupParticipants(currentConversation.id).length || currentConversation.participants?.length || 24})
+                      </span>
+                    </button>
+                  )}
 
                   {/* Manage Group Button (Admins & Teachers) */}
                   {(portalRole === 'admin' || portalRole === 'teacher') && currentConversation.type !== 'direct' && (
@@ -2114,6 +2206,28 @@ export function UnifiedChatEngine({
                 </div>
               </div>
 
+              {/* Manage Group Members Section */}
+              <div className="p-3.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 block">Channel / Group Members</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    {chatStore.getGroupParticipants(manageGroupTarget.id).length || manageGroupTarget.participants?.length || 24} members currently in this group.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = manageGroupTarget
+                    setShowManageGroupModal(false)
+                    setManagingGroupMembersConv(target)
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Manage Members</span>
+                </button>
+              </div>
+
               {/* Danger Zone */}
               <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/5 space-y-3">
                 <span className="text-xs font-bold text-rose-600 dark:text-rose-400 block">Danger Zone</span>
@@ -2415,6 +2529,21 @@ export function UnifiedChatEngine({
             </div>
           </div>
         </div>
+      )}
+      {/* MANAGE GROUP MEMBERS MODAL */}
+      {managingGroupMembersConv && (
+        <AdminGroupMembersModal
+          channel={managingGroupMembersConv}
+          isOpen={Boolean(managingGroupMembersConv)}
+          onClose={() => setManagingGroupMembersConv(null)}
+          initialUsers={initialUsers}
+          currentAdminName={user?.full_name || 'System Administrator'}
+          onMembersUpdated={(updated) => {
+            setConversations((prev) =>
+              prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
+            )
+          }}
+        />
       )}
     </div>
   )

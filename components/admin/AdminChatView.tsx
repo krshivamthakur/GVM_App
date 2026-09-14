@@ -9,7 +9,8 @@ import { ChatStateManager } from '@/lib/chat/chat-store'
 import {
   deleteServerConversationAction,
   updateServerConversationAction,
-  createServerConversationAction
+  createServerConversationAction,
+  getServerConversationsAction
 } from '@/actions/chat-actions'
 import {
   MessageSquare,
@@ -43,10 +44,11 @@ import {
   CheckCheck,
   MoreVertical,
   ExternalLink,
-  Filter,
   UserX,
-  UserCheck
+  UserCheck,
+  UserPlus
 } from 'lucide-react'
+import { AdminGroupMembersModal } from './AdminGroupMembersModal'
 
 export interface AdminChatContact {
   id: string
@@ -93,42 +95,32 @@ export interface ModeratedUser {
 
 const INITIAL_CHANNELS: AdminChatContact[] = [
   {
-    id: 'group_announcements',
-    name: '#announcements-hub',
+    id: 'conv_physics_cohort',
+    name: '#pcm-class-11th',
     role: 'group',
-    title: 'Platform-wide Official Announcements • System Channel',
-    avatar: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=120&auto=format&fit=crop&q=80',
+    title: 'Weekly discussion thread for Physics problem sets, derivations, and labs.',
+    avatar: 'https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?w=120&auto=format&fit=crop&q=80',
     status: 'online',
     unread: 0,
-    lastMessage: 'All systems operational.',
+    lastMessage: 'Active',
     lastTime: 'Active',
-    isLocked: true,
-    pinnedNotice: 'Important platform announcements will be broadcast here.',
-    memberCount: 1,
-    category: 'general'
+    isLocked: false,
+    pinnedNotice: 'Weekly discussion thread for Physics problem sets, derivations, and labs.',
+    memberCount: 24,
+    category: 'cohort'
   }
 ]
 
-const INITIAL_MESSAGES: Record<string, AdminChatMessage[]> = {
-  group_announcements: [
-    {
-      id: 'ann_1',
-      senderId: 'admin_sys',
-      senderName: 'System Administrator',
-      senderRole: 'admin',
-      text: '📢 Welcome to the GVM EduLMS official communication center. Platform announcements and broadcast notices will appear here.',
-      time: '09:00 AM',
-      isSelf: true,
-      isPinned: true
-    }
-  ]
-}
+const INITIAL_MESSAGES: Record<string, AdminChatMessage[]> = {}
 
 const INITIAL_MODERATED_USERS: ModeratedUser[] = []
 
-const CHAT_STORAGE_KEY = 'gvm_admin_chat_state_v2'
+const CHAT_STORAGE_KEY = 'gvm_admin_chat_state_v3'
 
 const DEMO_CONTACT_IDS = new Set([
+  'group_announcements',
+  'conv_announcements',
+  'conv_java_guild',
   'instructor_sarah',
   'instructor_alex',
   'student_marcus',
@@ -163,7 +155,7 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
   const [bannerAlert, setBannerAlert] = useState<string | null>(null)
 
   // Active Channel & Directory State synced with ChatStateManager
-  const [selectedChannelId, setSelectedChannelId] = useState<string>('conv_announcements')
+  const [selectedChannelId, setSelectedChannelId] = useState<string>('conv_physics_cohort')
   const [channelList, setChannelList] = useState<ChatConversation[]>([])
 
   // Create Channel Modal state
@@ -178,6 +170,7 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
   const [editChannelTitle, setEditChannelTitle] = useState('')
   const [editChannelTopic, setEditChannelTopic] = useState('')
   const [editChannelLocked, setEditChannelLocked] = useState(false)
+  const [managingMembersChannel, setManagingMembersChannel] = useState<ChatConversation | null>(null)
 
   // Broadcast modal/form state
   const [broadcastMessage, setBroadcastMessage] = useState('')
@@ -209,6 +202,31 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
       window.removeEventListener('gvm_chat_updated', updateChannels)
       window.removeEventListener('storage', updateChannels)
     }
+  }, [chatStore])
+
+  // Poll server for channel metadata changes every 10 seconds
+  // Ensures admin's own view also reflects the authoritative server state.
+  useEffect(() => {
+    const syncChannelMeta = () => {
+      getServerConversationsAction()
+        .then((serverConvs) => {
+          if (serverConvs && serverConvs.length > 0) {
+            const hasChanges = chatStore.mergeServerConversations(serverConvs)
+            if (hasChanges) {
+              setChannelList(
+                chatStore.getConversations().filter(
+                  (c) => c.type === 'group' || c.type === 'channel' || c.type === 'support'
+                )
+              )
+            }
+          }
+        })
+        .catch(() => {})
+    }
+
+    syncChannelMeta()
+    const channelMetaTimer = setInterval(syncChannelMeta, 10000)
+    return () => clearInterval(channelMetaTimer)
   }, [chatStore])
 
   // 1. Hydrate from localStorage and sync dynamic database users
@@ -492,7 +510,7 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
   }
 
   // Moderator: Create Channel
-  const handleCreateChannel = (e: React.FormEvent) => {
+  const handleCreateChannel = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newChannelName.trim()) return
 
@@ -508,12 +526,17 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
       creatorName: user?.full_name || 'System Administrator'
     })
 
-    createServerConversationAction({
-      title: formattedName,
-      type: newChannelCategory === 'support' ? 'support' : 'group',
-      isLocked: newChannelLocked,
-      pinnedNotice: newChannelTopic.trim() || undefined
-    }).catch(() => {})
+    try {
+      await createServerConversationAction({
+        id: newGroupConv.id,
+        title: formattedName,
+        type: newChannelCategory === 'support' ? 'support' : 'group',
+        isLocked: newChannelLocked,
+        pinnedNotice: newChannelTopic.trim() || undefined
+      })
+    } catch (err) {
+      console.warn('Error syncing created channel to server:', err)
+    }
 
     setChannelList(
       chatStore.getConversations().filter((c) => c.type === 'group' || c.type === 'channel' || c.type === 'support')
@@ -522,30 +545,41 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
     setNewChannelName('')
     setNewChannelTopic('')
 
+    window.dispatchEvent(new CustomEvent('gvm_chat_update'))
     setBannerAlert(`Official channel ${formattedName} created successfully!`)
     setTimeout(() => setBannerAlert(null), 3500)
   }
 
   // Moderator: Delete Channel
-  const handleDeleteChannel = (channelId: string) => {
+  const handleDeleteChannel = async (channelId: string) => {
     if (confirm('Permanently delete this official channel and all its message history?')) {
       chatStore.deleteConversation(channelId)
-      deleteServerConversationAction(channelId).catch(() => {})
+      try {
+        await deleteServerConversationAction(channelId)
+      } catch (err) {
+        console.warn('Error syncing deleted channel to server:', err)
+      }
       setChannelList(
         chatStore.getConversations().filter((c) => c.type === 'group' || c.type === 'channel' || c.type === 'support')
       )
+      window.dispatchEvent(new CustomEvent('gvm_chat_update'))
       setBannerAlert('Channel has been deleted permanently.')
       setTimeout(() => setBannerAlert(null), 3000)
     }
   }
 
   // Moderator: Toggle Lock status
-  const handleToggleLock = (channelId: string) => {
+  const handleToggleLock = async (channelId: string) => {
     const isLocked = chatStore.toggleChannelLock(channelId)
-    updateServerConversationAction({ id: channelId, isLocked }).catch(() => {})
+    try {
+      await updateServerConversationAction({ id: channelId, isLocked })
+    } catch (err) {
+      console.warn('Error syncing locked channel to server:', err)
+    }
     setChannelList(
       chatStore.getConversations().filter((c) => c.type === 'group' || c.type === 'channel' || c.type === 'support')
     )
+    window.dispatchEvent(new CustomEvent('gvm_chat_update'))
     setBannerAlert(isLocked ? 'Channel set to read-only announcement mode.' : 'Channel unlocked for community discussion.')
     setTimeout(() => setBannerAlert(null), 3000)
   }
@@ -559,7 +593,7 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
   }
 
   // Moderator: Save Edited Channel
-  const handleSaveEditChannel = (e: React.FormEvent) => {
+  const handleSaveEditChannel = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingChannel) return
     if (!editChannelTitle.trim()) return
@@ -571,15 +605,20 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
     })
 
     if (updated) {
-      updateServerConversationAction({
-        id: editingChannel.id,
-        title: updated.title,
-        pinnedNotice: updated.pinned_notice,
-        isLocked: updated.is_locked
-      }).catch(() => {})
+      try {
+        await updateServerConversationAction({
+          id: editingChannel.id,
+          title: updated.title,
+          pinnedNotice: updated.pinned_notice,
+          isLocked: updated.is_locked
+        })
+      } catch (err) {
+        console.warn('Error syncing updated channel to server:', err)
+      }
       setChannelList(
         chatStore.getConversations().filter((c) => c.type === 'group' || c.type === 'channel' || c.type === 'support')
       )
+      window.dispatchEvent(new CustomEvent('gvm_chat_update'))
     }
 
     setEditingChannel(null)
@@ -834,7 +873,20 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
                           </span>
                         </td>
                         <td className="px-4 py-3 font-medium text-foreground">
-                          {channel.participants?.length || 24} members
+                          <button
+                            type="button"
+                            onClick={() => setManagingMembersChannel(channel)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-semibold text-xs transition-colors cursor-pointer"
+                            title="Click to manage channel members"
+                          >
+                            <Users className="h-3.5 w-3.5" />
+                            <span>
+                              {chatStore.getGroupParticipants(channel.id).length ||
+                                channel.participants?.length ||
+                                24}{' '}
+                              members
+                            </span>
+                          </button>
                         </td>
                         <td className="px-4 py-3">
                           {channel.is_locked ? (
@@ -860,6 +912,14 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
                               className="px-2.5 py-1 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 font-semibold text-[11px] transition-colors cursor-pointer"
                             >
                               Open Chat
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setManagingMembersChannel(channel)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors cursor-pointer"
+                              title="Manage Group Members"
+                            >
+                              <Users className="h-4 w-4" />
                             </button>
                             <button
                               type="button"
@@ -1260,6 +1320,28 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
                 </select>
               </div>
 
+              {/* Manage Members in Channel */}
+              <div className="p-3 rounded-xl border border-indigo-500/20 bg-indigo-500/5 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 block">Channel Members</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {chatStore.getGroupParticipants(editingChannel.id).length || editingChannel.participants?.length || 24} registered participants in channel.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = editingChannel
+                    setEditingChannel(null)
+                    setManagingMembersChannel(target)
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shrink-0"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Manage Members</span>
+                </button>
+              </div>
+
               <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/5 flex items-center justify-between gap-2">
                 <div>
                   <span className="text-xs font-bold text-rose-600 dark:text-rose-400 block">Delete Channel</span>
@@ -1383,6 +1465,22 @@ export function AdminChatView({ initialUsers = [] }: AdminChatViewProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MANAGE GROUP MEMBERS MODAL */}
+      {managingMembersChannel && (
+        <AdminGroupMembersModal
+          channel={managingMembersChannel}
+          isOpen={Boolean(managingMembersChannel)}
+          onClose={() => setManagingMembersChannel(null)}
+          initialUsers={initialUsers}
+          currentAdminName={user?.full_name || 'System Administrator'}
+          onMembersUpdated={() => {
+            setChannelList(
+              chatStore.getConversations().filter((c) => c.type === 'group' || c.type === 'channel' || c.type === 'support')
+            )
+          }}
+        />
       )}
     </div>
   )

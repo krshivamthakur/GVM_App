@@ -128,3 +128,27 @@
     @apply font-sans;
   }
 }
+
+/* Print Isolation Rules: Ensure ONLY the official receipt prints, not the entire page */
+@media print {
+  body[data-receipt-open="true"] > *:not(#receipt-modal-portal) {
+    display: none !important;
+  }
+  body[data-receipt-open="true"] {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  body[data-receipt-open="true"] #receipt-modal-portal {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+  body[data-receipt-open="true"] .no-print,
+  body[data-receipt-open="true"] .print-hidden,
+  body[data-receipt-open="true"] [data-no-print="true"] {
+    display: none !important;
+  }
+}

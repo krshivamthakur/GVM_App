@@ -58,6 +58,7 @@ export interface ChatParticipant {
   user_name: string
   user_role: string
   user_avatar?: string | null
+  user_email?: string
   role: 'admin' | 'moderator' | 'member'
   is_muted?: boolean
   last_read_at?: string

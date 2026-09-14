@@ -193,12 +193,25 @@ export function AssignFeeStructureModal({
               onChange={e => setSelectedStructureId(e.target.value)}
               className="w-full px-3.5 py-2.5 rounded-xl border border-border bg-background text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
-              {structures.map(s => (
-                <option key={s.id} value={s.id}>
-                  {s.name} — {formatCurrency(s.totalAmount)} ({s.frequency})
-                </option>
-              ))}
+              {structures.map(s => {
+                const multiLabel = s.courseNames && s.courseNames.length > 1 ? ` [${s.courseNames.length} Courses]` : ''
+                return (
+                  <option key={s.id} value={s.id}>
+                    {s.name} — {formatCurrency(s.totalAmount)} ({s.frequency}){multiLabel}
+                  </option>
+                )
+              })}
             </select>
+            {activeStructure?.courseNames && activeStructure.courseNames.length > 1 && (
+              <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                <span className="font-semibold text-primary">Applies to:</span>
+                {activeStructure.courseNames.map((cn, i) => (
+                  <span key={i} className="px-1.5 py-0.5 rounded bg-muted text-foreground border border-border/50 text-[10px]">
+                    {cn}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Program / Course Selector */}

@@ -124,16 +124,9 @@ export function AdminShortsManager({ initialShorts }: AdminShortsManagerProps) {
       {/* Top Banner & Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold text-orange-600 dark:text-orange-400 uppercase tracking-wider">
-            <Flame className="w-4 h-4" />
-            <span>Micro-Learning Moderation</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight mt-1">
-            Shorts & Micro-Videos Studio
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
+            Shorts Studio
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Inspect all educator shorts, moderate bite-sized clips, post platform announcements, and monitor video engagement.
-          </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

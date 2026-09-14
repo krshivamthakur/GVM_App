@@ -11,7 +11,9 @@ import {
   PaymentMode,
   TransactionStatus,
   FeePaymentStatus,
-  FeeInstallment
+  FeeInstallment,
+  FeeReceiptInstitutionSettings,
+  DEFAULT_RECEIPT_SETTINGS
 } from '@/types/fee'
 import { createAdminClient } from '@/lib/supabase/server'
 import { dataStore } from '@/lib/data/store'
@@ -22,132 +24,25 @@ import { revalidatePath } from 'next/cache'
 // IN-MEMORY STORE (Supabase / Postgres synchronized)
 // ============================================================
 
-let MOCK_CATEGORIES: FeeCategory[] = [
-  { id: 'cat_tui', name: 'Tuition Fee', code: 'TUI', description: 'Academic instruction & lab classes', isRefundable: false },
-  { id: 'cat_adm', name: 'Admission & Registration', code: 'ADM', description: 'One-time admission charge', isRefundable: false },
-  { id: 'cat_exm', name: 'Examination & Evaluation', code: 'EXM', description: 'Semester exams and certifications', isRefundable: false },
-  { id: 'cat_lib', name: 'Library & Digital Resources', code: 'LIB', description: 'Access to physical & e-library', isRefundable: true },
-  { id: 'cat_lab', name: 'Laboratory & Tech Infrastructure', code: 'LAB', description: 'Computing equipment & servers', isRefundable: false },
-  { id: 'cat_hos', name: 'Hostel & Residential Fee', code: 'HOS', description: 'Boarding, utilities and Wi-Fi', isRefundable: true },
-  { id: 'cat_trn', name: 'Campus Transport', code: 'TRN', description: 'Bus transport across city routes', isRefundable: false },
-  { id: 'cat_spr', name: 'Sports & Student Activities', code: 'SPR', description: 'Gym, clubs and tournaments', isRefundable: false },
-]
+let MOCK_CATEGORIES: FeeCategory[] = []
 
-const DEFAULT_FEE_STRUCTURES: FeeStructure[] = [
-  {
-    id: 'struct_btech_cs',
-    name: 'B.Tech Computer Science & AI — Annual 2026-27',
-    courseId: 'course_btech_cs',
-    courseName: 'B.Tech Computer Science & AI',
-    batchYear: '2026-2027',
-    frequency: 'annual',
-    totalAmount: 120000,
-    dueDate: '2026-10-31',
-    gracePeriodDays: 10,
-    lateFinePerDay: 100,
-    maxLateFine: 3000,
-    isActive: true,
-    createdAt: '2026-08-01',
-    items: [
-      { id: 'item_1', categoryId: 'cat_tui', categoryName: 'Tuition Fee', amount: 80000 },
-      { id: 'item_2', categoryId: 'cat_lab', categoryName: 'Laboratory & Tech Infrastructure', amount: 20000 },
-      { id: 'item_3', categoryId: 'cat_lib', categoryName: 'Library & Digital Resources', amount: 10000 },
-      { id: 'item_4', categoryId: 'cat_exm', categoryName: 'Examination & Evaluation', amount: 10000 },
-    ]
-  },
-  {
-    id: 'struct_data_sci',
-    name: 'Full Stack & Data Science Specialization — Semester 2026',
-    courseId: 'course_data_sci',
-    courseName: 'Full Stack Web & Data Science',
-    batchYear: '2026-2027',
-    frequency: 'semester',
-    totalAmount: 75000,
-    dueDate: '2026-10-15',
-    gracePeriodDays: 7,
-    lateFinePerDay: 75,
-    maxLateFine: 2000,
-    isActive: true,
-    createdAt: '2026-08-05',
-    items: [
-      { id: 'item_5', categoryId: 'cat_tui', categoryName: 'Tuition Fee', amount: 50000 },
-      { id: 'item_6', categoryId: 'cat_lab', categoryName: 'Laboratory & Tech Infrastructure', amount: 15000 },
-      { id: 'item_7', categoryId: 'cat_spr', categoryName: 'Sports & Student Activities', amount: 10000 },
-    ]
-  },
-  {
-    id: 'struct_general',
-    name: 'Standard Academic Program — Annual 2026-27',
-    courseId: 'course_general',
-    courseName: 'Standard Academic Program',
-    batchYear: '2026-2027',
-    frequency: 'annual',
-    totalAmount: 60000,
-    dueDate: '2026-11-15',
-    gracePeriodDays: 14,
-    lateFinePerDay: 50,
-    maxLateFine: 1500,
-    isActive: true,
-    createdAt: '2026-08-10',
-    items: [
-      { id: 'item_8', categoryId: 'cat_tui', categoryName: 'Tuition Fee', amount: 45000 },
-      { id: 'item_9', categoryId: 'cat_adm', categoryName: 'Admission & Registration', amount: 10000 },
-      { id: 'item_10', categoryId: 'cat_lib', categoryName: 'Library & Digital Resources', amount: 5000 },
-    ]
-  }
-]
+const DEFAULT_FEE_STRUCTURES: FeeStructure[] = []
 
-const DEFAULT_FEE_DISCOUNTS: FeeDiscount[] = [
-  {
-    id: 'dsc_merit_25',
-    name: 'Merit Scholarship (Top 10%)',
-    discountType: 'percentage',
-    value: 25,
-    description: 'Awarded to top academic performers in previous term (25% off)',
-    isActive: true
-  },
-  {
-    id: 'dsc_sibling_10k',
-    name: 'Sibling Concession',
-    discountType: 'fixed_amount',
-    value: 10000,
-    description: 'Family discount for multiple enrolled siblings (₹10,000 off)',
-    isActive: true
-  },
-  {
-    id: 'dsc_sports_15',
-    name: 'Sports Excellence Concession',
-    discountType: 'percentage',
-    value: 15,
-    description: 'Zonal & national sports representatives (15% off)',
-    isActive: true
-  },
-  {
-    id: 'dsc_early_5k',
-    name: 'Early Registration Incentive',
-    discountType: 'fixed_amount',
-    value: 5000,
-    description: 'Early enrollment concession for upcoming session (₹5,000 off)',
-    isActive: true
-  }
-]
+const DEFAULT_FEE_DISCOUNTS: FeeDiscount[] = []
 
-let MOCK_DISCOUNTS: FeeDiscount[] = [...DEFAULT_FEE_DISCOUNTS]
-let MOCK_STRUCTURES: FeeStructure[] = [...DEFAULT_FEE_STRUCTURES]
+let MOCK_DISCOUNTS: FeeDiscount[] = []
+let MOCK_STRUCTURES: FeeStructure[] = []
 let MOCK_STUDENT_PROFILES: StudentFeeProfile[] = []
 let MOCK_PAYMENTS: FeePayment[] = []
 let MOCK_NOTIFICATIONS: FeeNotificationLog[] = []
+let MOCK_RECEIPT_SETTINGS: FeeReceiptInstitutionSettings = { ...DEFAULT_RECEIPT_SETTINGS }
 
 function ensureDefaultFeeStructures() {
-  if (MOCK_STRUCTURES.length === 0) {
-    MOCK_STRUCTURES = [...DEFAULT_FEE_STRUCTURES]
-  }
+  // Only database-backed or admin-created structures
 }
 
 function ensureDefaultDiscounts() {
-  if (MOCK_DISCOUNTS.length === 0) {
-    MOCK_DISCOUNTS = [...DEFAULT_FEE_DISCOUNTS]
-  }
+  // Only database-backed or admin-created discounts
 }
 
 // ============================================================
@@ -187,46 +82,7 @@ export async function getDirectoryStudents(): Promise<Profile[]> {
     }
   })
 
-  // 3. If zero students exist anywhere (e.g. unseeded environment), provide baseline demo students
-  if (studentMap.size === 0) {
-    const baselineStudents: Profile[] = [
-      {
-        id: '00000000-0000-0000-0000-000000000001',
-        full_name: 'Arjun Verma',
-        email: 'student@example.com',
-        role: 'student',
-        teacher_status: 'approved',
-        avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-        bio: 'Computer Science student passionate about backend systems.',
-        created_at: new Date().toISOString()
-      },
-      {
-        id: '00000000-0000-0000-0000-000000000005',
-        full_name: 'Priya Sharma',
-        email: 'priya.sharma@example.com',
-        role: 'student',
-        teacher_status: 'approved',
-        avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        bio: 'Full Stack Web & Data Science Learner',
-        created_at: new Date().toISOString()
-      },
-      {
-        id: '00000000-0000-0000-0000-000000000006',
-        full_name: 'Rohan Mehra',
-        email: 'rohan.mehra@example.com',
-        role: 'student',
-        teacher_status: 'approved',
-        avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
-        bio: 'Enrolled in Artificial Intelligence Foundations',
-        created_at: new Date().toISOString()
-      }
-    ]
 
-    baselineStudents.forEach(st => {
-      dataStore.getAllProfilesAdmin().push(st)
-      studentMap.set(st.id, st)
-    })
-  }
 
   return Array.from(studentMap.values())
 }
@@ -288,28 +144,25 @@ export async function syncStudentsFromDirectory(): Promise<{
           const enrollments = dataStore.getStudentEnrollments(student.id)
           const enrolledCourse = enrollments.length > 0 ? enrollments[0] : null
 
-          let matchedStructure = MOCK_STRUCTURES.find(s => enrolledCourse && s.courseId === enrolledCourse.id)
-          if (!matchedStructure) {
-            // Distribute nicely across available structures
-            const structIndex = profileMap.size % MOCK_STRUCTURES.length
-            matchedStructure = MOCK_STRUCTURES[structIndex] || MOCK_STRUCTURES[0]
+          let matchedStructure = MOCK_STRUCTURES.find(
+            s => enrolledCourse && (s.courseId === enrolledCourse.id || (s.courseIds && s.courseIds.includes(enrolledCourse.id)))
+          )
+          if (!matchedStructure && MOCK_STRUCTURES.length > 0) {
+            matchedStructure = MOCK_STRUCTURES[0]
           }
 
           const rollNumber = `GVM-2026-${student.id.replace(/-/g, '').slice(-4).toUpperCase()}`
-          const baseFee = matchedStructure.totalAmount
+          const baseFee = matchedStructure ? matchedStructure.totalAmount : 0
           const netFee = baseFee
           const dueFee = baseFee
 
-          const inst1Amount = Math.ceil(netFee / 2)
-          const inst2Amount = netFee - inst1Amount
-
-          const installments: FeeInstallment[] = [
+          const installments: FeeInstallment[] = matchedStructure ? [
             {
               id: `inst_${student.id}_1`,
               studentId: student.id,
               installmentNumber: 1,
-              title: 'Term 1 / Admission Installment',
-              amount: inst1Amount,
+              title: 'Term 1 Installment',
+              amount: Math.ceil(netFee / 2),
               dueDate: matchedStructure.dueDate,
               paidAmount: 0,
               lateFine: 0,
@@ -319,14 +172,14 @@ export async function syncStudentsFromDirectory(): Promise<{
               id: `inst_${student.id}_2`,
               studentId: student.id,
               installmentNumber: 2,
-              title: 'Term 2 / Mid-Session Installment',
-              amount: inst2Amount,
+              title: 'Term 2 Installment',
+              amount: netFee - Math.ceil(netFee / 2),
               dueDate: '2026-12-15',
               paidAmount: 0,
               lateFine: 0,
               status: 'unpaid'
             }
-          ]
+          ] : []
 
           const newProfile: StudentFeeProfile = {
             id: `sfp_${student.id}`,
@@ -335,18 +188,18 @@ export async function syncStudentsFromDirectory(): Promise<{
             studentAvatar: student.avatar_url || undefined,
             rollNumber,
             email: student.email,
-            courseId: matchedStructure.courseId,
-            courseName: enrolledCourse ? enrolledCourse.title : matchedStructure.courseName,
+            courseId: matchedStructure ? matchedStructure.courseId : (enrolledCourse ? enrolledCourse.id : ''),
+            courseName: enrolledCourse ? enrolledCourse.title : (matchedStructure ? matchedStructure.courseName : 'General Curriculum'),
             className: 'Class of 2026',
-            structureId: matchedStructure.id,
-            structureName: matchedStructure.name,
+            structureId: matchedStructure ? matchedStructure.id : '',
+            structureName: matchedStructure ? matchedStructure.name : 'No Fee Structure Assigned',
             discountAmount: 0,
             customAdjustment: 0,
             netFee,
             paidFee: 0,
             dueFee,
             lateFineAccrued: 0,
-            status: 'unpaid',
+            status: dueFee > 0 ? 'unpaid' : 'paid',
             installments,
             isAutoDetected: true,
             syncedAt: new Date().toISOString()
@@ -428,6 +281,33 @@ export async function createFeeDiscount(discount: Omit<FeeDiscount, 'id'>): Prom
   }
   MOCK_DISCOUNTS.push(newDiscount)
   return newDiscount
+}
+
+// ============================================================
+// SERVER ACTIONS: RECEIPT INSTITUTION SETTINGS (ADMIN MANAGED)
+// ============================================================
+
+export async function getFeeReceiptSettings(): Promise<FeeReceiptInstitutionSettings> {
+  return { ...MOCK_RECEIPT_SETTINGS }
+}
+
+export async function updateFeeReceiptSettings(
+  settings: Partial<FeeReceiptInstitutionSettings>
+): Promise<FeeReceiptInstitutionSettings> {
+  MOCK_RECEIPT_SETTINGS = {
+    ...MOCK_RECEIPT_SETTINGS,
+    ...settings
+  }
+  revalidatePath('/admin/fees')
+  revalidatePath('/student/fees')
+  return { ...MOCK_RECEIPT_SETTINGS }
+}
+
+export async function resetFeeReceiptSettings(): Promise<FeeReceiptInstitutionSettings> {
+  MOCK_RECEIPT_SETTINGS = { ...DEFAULT_RECEIPT_SETTINGS }
+  revalidatePath('/admin/fees')
+  revalidatePath('/student/fees')
+  return { ...MOCK_RECEIPT_SETTINGS }
 }
 
 // ============================================================

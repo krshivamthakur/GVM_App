@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/actions/auth-actions'
 import { 
   ChatConversation, 
   ChatMessage, 
+  ChatParticipant,
   ModerationReport 
 } from '@/types/chat'
 import { Profile } from '@/types/database'
@@ -191,6 +192,7 @@ export async function getAllRecentServerMessagesAction(): Promise<Record<string,
 }
 
 export async function createServerConversationAction(payload: {
+  id?: string
   title: string
   type: 'direct' | 'group' | 'channel' | 'support'
   avatar?: string
@@ -203,7 +205,7 @@ export async function createServerConversationAction(payload: {
     return { success: false, error: 'Authentication required' }
   }
 
-  const convId = `conv_${Date.now()}`
+  const convId = payload.id || `conv_${Date.now()}`
   const now = new Date().toISOString()
 
   const newConv: ChatConversation = {
@@ -303,8 +305,8 @@ export async function getAdminChatStatsAction() {
     }
   } catch (e) {
     return {
-      totalMessages: 248,
-      totalChannels: 6,
+      totalMessages: 0,
+      totalChannels: 0,
       pendingReports: 0
     }
   }
@@ -338,6 +340,130 @@ export async function updateServerConversationAction(payload: {
     await supabase.from('chat_conversations').update(updates).eq('id', payload.id)
   } catch (e) {
     console.warn('updateServerConversationAction fallback:', e)
+  }
+  return { success: true }
+}
+
+/**
+ * Fetches all group/channel/support conversations from the server.
+ * Used to globally propagate admin changes (rename, lock, notice) to all users.
+ */
+export async function getServerConversationsAction(): Promise<ChatConversation[]> {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('chat_conversations')
+      .select('*')
+      .in('type', ['group', 'channel', 'support'])
+      .order('updated_at', { ascending: false })
+
+    if (!error && data && data.length > 0) {
+      return data as ChatConversation[]
+    }
+  } catch (e) {
+    console.warn('getServerConversationsAction fallback:', e)
+  }
+  return []
+}
+
+export async function getServerParticipantsAction(conversationId: string): Promise<ChatParticipant[]> {
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('chat_participants')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('joined_at', { ascending: true })
+
+    if (!error && data) {
+      return data as ChatParticipant[]
+    }
+  } catch (e) {
+    console.warn('getServerParticipantsAction fallback:', e)
+  }
+  return []
+}
+
+export async function addServerParticipantAction(payload: {
+  conversationId: string
+  userId: string
+  userName: string
+  userRole?: string
+  userAvatar?: string | null
+  userEmail?: string
+  role?: 'admin' | 'moderator' | 'member'
+}): Promise<{ success: boolean; participant?: ChatParticipant; error?: string }> {
+  const partId = `part_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+  const participant: ChatParticipant = {
+    id: partId,
+    conversation_id: payload.conversationId,
+    user_id: payload.userId,
+    user_name: payload.userName,
+    user_role: payload.userRole || 'student',
+    user_avatar: payload.userAvatar,
+    user_email: payload.userEmail,
+    role: payload.role || 'member',
+    is_muted: false,
+    joined_at: new Date().toISOString()
+  }
+
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase.from('chat_participants').upsert({
+      id: partId,
+      conversation_id: payload.conversationId,
+      user_id: payload.userId,
+      user_name: payload.userName,
+      user_role: payload.userRole || 'student',
+      user_avatar: payload.userAvatar,
+      role: payload.role || 'member',
+      is_muted: false,
+      joined_at: new Date().toISOString()
+    }, { onConflict: 'conversation_id,user_id' }).select().maybeSingle()
+
+    if (!error && data) {
+      return { success: true, participant: data as ChatParticipant }
+    }
+  } catch (e) {
+    console.warn('addServerParticipantAction fallback:', e)
+  }
+  return { success: true, participant }
+}
+
+export async function removeServerParticipantAction(payload: {
+  conversationId: string
+  userId: string
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = createAdminClient()
+    await supabase
+      .from('chat_participants')
+      .delete()
+      .eq('conversation_id', payload.conversationId)
+      .eq('user_id', payload.userId)
+  } catch (e) {
+    console.warn('removeServerParticipantAction fallback:', e)
+  }
+  return { success: true }
+}
+
+export async function updateServerParticipantRoleAction(payload: {
+  conversationId: string
+  userId: string
+  role: 'admin' | 'moderator' | 'member'
+  isMuted?: boolean
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = createAdminClient()
+    const updates: any = { role: payload.role }
+    if (payload.isMuted !== undefined) updates.is_muted = payload.isMuted
+    await supabase
+      .from('chat_participants')
+      .update(updates)
+      .eq('conversation_id', payload.conversationId)
+      .eq('user_id', payload.userId)
+  } catch (e) {
+    console.warn('updateServerParticipantRoleAction fallback:', e)
   }
   return { success: true }
 }

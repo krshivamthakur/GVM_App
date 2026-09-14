@@ -36,34 +36,43 @@ export async function getAdminPlatformStats() {
       { count: totalTeachers },
       { count: totalCourses },
       { count: publishedCourses },
-      { count: totalLectures }
+      { count: totalLectures },
+      { count: totalEnrollments }
     ] = await withTimeout(
       Promise.all([
-        supabase.from('Profile').select('*', { count: 'exact', head: true }).eq('role', 'student'),
-        supabase.from('Profile').select('*', { count: 'exact', head: true }).eq('role', 'teacher'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'teacher'),
         supabase.from('courses').select('*', { count: 'exact', head: true }),
         supabase.from('courses').select('*', { count: 'exact', head: true }).eq('status', 'published'),
-        supabase.from('lectures').select('*', { count: 'exact', head: true })
+        supabase.from('lectures').select('*', { count: 'exact', head: true }),
+        supabase.from('enrollments').select('*', { count: 'exact', head: true })
       ]),
-      1500
+      2500
     )
 
-    if (totalStudents !== null && totalTeachers !== null) {
-      return {
-        totalStudents: totalStudents || 0,
-        totalTeachers: totalTeachers || 0,
-        pendingTeachers: 0,
-        totalCourses: totalCourses || 0,
-        publishedCourses: publishedCourses || 0,
-        totalLectures: totalLectures || 0,
-        totalEnrollments: (totalStudents || 0) * (totalCourses || 0)
-      }
+    return {
+      totalStudents: totalStudents || 0,
+      totalTeachers: totalTeachers || 0,
+      pendingTeachers: 0,
+      totalCourses: totalCourses || 0,
+      publishedCourses: publishedCourses || 0,
+      totalLectures: totalLectures || 0,
+      totalEnrollments: totalEnrollments || 0
     }
   } catch (err) {
     console.warn('Supabase getAdminPlatformStats fallback:', err)
   }
 
-  return dataStore.getAdminStats()
+  const dbProfiles = dataStore.getAllProfilesAdmin()
+  return {
+    totalStudents: dbProfiles.filter(p => p.role === 'student').length,
+    totalTeachers: dbProfiles.filter(p => p.role === 'teacher').length,
+    pendingTeachers: 0,
+    totalCourses: 0,
+    publishedCourses: 0,
+    totalLectures: 0,
+    totalEnrollments: 0
+  }
 }
 
 export async function getAllUsers(role?: string): Promise<Profile[]> {

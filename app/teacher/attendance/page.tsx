@@ -13,7 +13,7 @@ export default async function TeacherAttendancePage() {
   const teacher = await requireRole(['teacher', 'admin'])
 
   const [classes, sessions, leaveRequests] = await Promise.all([
-    getClassesByTeacher(teacher.id),
+    getClassesByTeacher(teacher.id, teacher.full_name || undefined, teacher.email),
     getAttendanceSessions(undefined, teacher.id),
     getLeaveRequests('teacher', teacher.id),
   ])
