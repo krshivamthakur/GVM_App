@@ -98,8 +98,8 @@ let syncInFlight: Promise<{
 
 /**
  * Auto-detect and synchronize students from Student Directory into Fee Management.
- * - Existing profiles have student names/emails/avatars synchronized.
- * - New students have fee profiles automatically initialized with enrolled/default course structures.
+ * - Loads persisted fee profiles and installments directly from Supabase.
+ * - New students have fee profiles automatically initialized and synced.
  */
 export async function syncStudentsFromDirectory(): Promise<{
   syncedCount: number
@@ -112,52 +112,212 @@ export async function syncStudentsFromDirectory(): Promise<{
 
   syncInFlight = (async () => {
     try {
-      ensureDefaultFeeStructures()
-      ensureDefaultDiscounts()
+      // 1. Ensure master fee structures & discounts are loaded from Supabase
+      const [structures, discounts, directoryStudents] = await Promise.all([
+        getFeeStructures(),
+        getFeeDiscounts(),
+        getDirectoryStudents()
+      ])
 
-      const directoryStudents = await getDirectoryStudents()
-      let newlyDetectedCount = 0
+      const supabase = createAdminClient()
 
-      // Use a Map keyed by studentId to guarantee no duplicate profiles
-      const profileMap = new Map<string, StudentFeeProfile>()
-      for (const p of MOCK_STUDENT_PROFILES) {
-        if (p.studentId) {
-          profileMap.set(p.studentId, p)
-        }
+      // 2. Fetch courses for course title mapping
+      const { data: dbCourses } = await supabase.from('courses').select('id, title')
+      const courseMap = new Map<string, string>()
+      if (dbCourses) {
+        dbCourses.forEach(c => courseMap.set(c.id, c.title))
       }
 
+      // 3. Fetch saved student fee profiles from Supabase
+      const { data: dbProfiles, error: profError } = await supabase
+        .from('student_fee_profiles')
+        .select(`
+          *,
+          fee_structures (
+            id,
+            name,
+            course_id,
+            batch_year,
+            frequency,
+            total_amount,
+            due_date,
+            grace_period_days,
+            late_fine_per_day,
+            max_late_fine,
+            is_active
+          ),
+          fee_discounts (
+            id,
+            name,
+            discount_type,
+            value
+          )
+        `)
+
+      if (profError) {
+        console.warn('Error fetching student_fee_profiles from Supabase:', profError)
+      }
+
+      // 4. Fetch fee installments from Supabase
+      const { data: dbInstallments } = await supabase
+        .from('fee_installments')
+        .select('*')
+        .order('installment_number', { ascending: true })
+
+      const installmentsMap = new Map<string, any[]>()
+      if (dbInstallments) {
+        dbInstallments.forEach(inst => {
+          const list = installmentsMap.get(inst.student_id) || []
+          list.push(inst)
+          installmentsMap.set(inst.student_id, list)
+        })
+      }
+
+      const dbProfileMap = new Map<string, any>()
+      if (dbProfiles) {
+        dbProfiles.forEach(p => {
+          if (p.student_id) {
+            dbProfileMap.set(p.student_id, p)
+          }
+        })
+      }
+
+      let newlyDetectedCount = 0
+      const profileMap = new Map<string, StudentFeeProfile>()
+
+      // Match each student from directory
       for (const student of directoryStudents) {
         const displayName = student.full_name || student.email.split('@')[0]
-        const existing = profileMap.get(student.id)
+        const rollNumber = `GVM-2026-${student.id.replace(/-/g, '').slice(-4).toUpperCase()}`
+        const savedDbProfile = dbProfileMap.get(student.id)
 
-        if (existing) {
-          // Sync any updated directory details (name, email, avatar)
-          existing.studentName = displayName
-          existing.email = student.email
-          if (student.avatar_url) {
-            existing.studentAvatar = student.avatar_url
+        if (savedDbProfile) {
+          // Student fee profile already exists in Supabase!
+          const struct = savedDbProfile.fee_structures
+          const discount = savedDbProfile.fee_discounts
+
+          const structId = savedDbProfile.structure_id || ''
+          const structName = struct?.name || 'No Fee Structure Assigned'
+          const courseId = struct?.course_id || ''
+          const courseName = courseMap.get(courseId) || (struct ? struct.name : 'General Curriculum')
+
+          const netFee = Number(savedDbProfile.net_fee) || 0
+          const paidFee = Number(savedDbProfile.paid_fee) || 0
+          const dueFee = Number(savedDbProfile.due_fee) || 0
+          const lateFineAccrued = Number(savedDbProfile.late_fine_accrued) || 0
+          const customAdjustment = Number(savedDbProfile.custom_adjustment) || 0
+
+          let discountAmount = 0
+          if (discount && struct) {
+            discountAmount = discount.discount_type === 'percentage'
+              ? Math.round((Number(struct.total_amount) * Number(discount.value)) / 100)
+              : Number(discount.value) || 0
           }
-          existing.isAutoDetected = true
-          existing.syncedAt = new Date().toISOString()
+
+          // Fetch or generate installments
+          const studentDbInsts = installmentsMap.get(student.id) || []
+          let installments: FeeInstallment[] = []
+
+          if (studentDbInsts.length > 0) {
+            installments = studentDbInsts.map(i => ({
+              id: i.id,
+              studentId: student.id,
+              installmentNumber: i.installment_number,
+              title: `Term ${i.installment_number} Installment`,
+              amount: Number(i.amount) || 0,
+              dueDate: i.due_date,
+              paidAmount: Number(i.paid_amount) || 0,
+              lateFine: Number(i.late_fine) || 0,
+              status: (i.status as FeePaymentStatus) || 'unpaid',
+              paidAt: i.paid_at || undefined
+            }))
+          } else if (netFee > 0 && struct) {
+            const inst1Amount = Math.ceil(netFee / 2)
+            const inst2Amount = netFee - inst1Amount
+            const instsToInsert = [
+              {
+                student_id: student.id,
+                installment_number: 1,
+                amount: inst1Amount,
+                due_date: struct.due_date || new Date().toISOString().split('T')[0],
+                paid_amount: Math.min(paidFee, inst1Amount),
+                late_fine: 0,
+                status: paidFee >= inst1Amount ? 'paid' : paidFee > 0 ? 'partial' : 'unpaid'
+              },
+              {
+                student_id: student.id,
+                installment_number: 2,
+                amount: inst2Amount,
+                due_date: '2026-12-15',
+                paid_amount: Math.max(0, paidFee - inst1Amount),
+                late_fine: 0,
+                status: paidFee >= netFee ? 'paid' : (paidFee - inst1Amount) > 0 ? 'partial' : 'unpaid'
+              }
+            ]
+
+            // Persist newly generated installments to Supabase
+            supabase.from('fee_installments').insert(instsToInsert).select().then(() => {})
+
+            installments = instsToInsert.map((i, idx) => ({
+              id: `inst_${student.id}_${idx + 1}`,
+              studentId: student.id,
+              installmentNumber: i.installment_number,
+              title: `Term ${i.installment_number} Installment`,
+              amount: i.amount,
+              dueDate: i.due_date,
+              paidAmount: i.paid_amount,
+              lateFine: 0,
+              status: i.status as FeePaymentStatus
+            }))
+          }
+
+          const profile: StudentFeeProfile = {
+            id: savedDbProfile.id || `sfp_${student.id}`,
+            studentId: student.id,
+            studentName: displayName,
+            studentAvatar: student.avatar_url || undefined,
+            rollNumber,
+            email: student.email,
+            courseId,
+            courseName,
+            className: 'Class of 2026',
+            structureId: structId,
+            structureName: structName,
+            discountId: savedDbProfile.discount_id || undefined,
+            discountName: discount?.name || undefined,
+            discountAmount,
+            customAdjustment,
+            netFee,
+            paidFee,
+            dueFee,
+            lateFineAccrued,
+            status: savedDbProfile.status as FeePaymentStatus,
+            lastPaymentDate: savedDbProfile.last_payment_date ? savedDbProfile.last_payment_date.split('T')[0] : undefined,
+            installments,
+            isAutoDetected: true,
+            syncedAt: savedDbProfile.updated_at || new Date().toISOString()
+          }
+
+          profileMap.set(student.id, profile)
         } else {
-          // Auto-detect newly registered student
+          // Auto-detect newly registered student not in student_fee_profiles yet
           newlyDetectedCount++
 
           // Determine course association: check enrollment or alternate across structures
           const enrollments = dataStore.getStudentEnrollments(student.id)
           const enrolledCourse = enrollments.length > 0 ? enrollments[0] : null
 
-          let matchedStructure = MOCK_STRUCTURES.find(
+          let matchedStructure = structures.find(
             s => enrolledCourse && (s.courseId === enrolledCourse.id || (s.courseIds && s.courseIds.includes(enrolledCourse.id)))
           )
-          if (!matchedStructure && MOCK_STRUCTURES.length > 0) {
-            matchedStructure = MOCK_STRUCTURES[0]
+          if (!matchedStructure && structures.length > 0) {
+            matchedStructure = structures[0]
           }
 
-          const rollNumber = `GVM-2026-${student.id.replace(/-/g, '').slice(-4).toUpperCase()}`
           const baseFee = matchedStructure ? matchedStructure.totalAmount : 0
           const netFee = baseFee
           const dueFee = baseFee
+          const status: FeePaymentStatus = dueFee > 0 ? 'unpaid' : 'paid'
 
           const installments: FeeInstallment[] = matchedStructure ? [
             {
@@ -184,6 +344,9 @@ export async function syncStudentsFromDirectory(): Promise<{
             }
           ] : []
 
+          const courseId = matchedStructure ? matchedStructure.courseId : (enrolledCourse ? enrolledCourse.id : '')
+          const courseName = enrolledCourse ? enrolledCourse.title : (matchedStructure ? matchedStructure.courseName : (courseMap.get(courseId) || 'General Curriculum'))
+
           const newProfile: StudentFeeProfile = {
             id: `sfp_${student.id}`,
             studentId: student.id,
@@ -191,8 +354,8 @@ export async function syncStudentsFromDirectory(): Promise<{
             studentAvatar: student.avatar_url || undefined,
             rollNumber,
             email: student.email,
-            courseId: matchedStructure ? matchedStructure.courseId : (enrolledCourse ? enrolledCourse.id : ''),
-            courseName: enrolledCourse ? enrolledCourse.title : (matchedStructure ? matchedStructure.courseName : 'General Curriculum'),
+            courseId,
+            courseName,
             className: 'Class of 2026',
             structureId: matchedStructure ? matchedStructure.id : '',
             structureName: matchedStructure ? matchedStructure.name : 'No Fee Structure Assigned',
@@ -202,10 +365,25 @@ export async function syncStudentsFromDirectory(): Promise<{
             paidFee: 0,
             dueFee,
             lateFineAccrued: 0,
-            status: dueFee > 0 ? 'unpaid' : 'paid',
+            status,
             installments,
             isAutoDetected: true,
             syncedAt: new Date().toISOString()
+          }
+
+          // Auto-persist new profile into Supabase if a structure is matched
+          if (matchedStructure) {
+            supabase.from('student_fee_profiles').upsert({
+              student_id: student.id,
+              structure_id: matchedStructure.id,
+              custom_adjustment: 0,
+              net_fee: netFee,
+              paid_fee: 0,
+              due_fee: dueFee,
+              late_fine_accrued: 0,
+              status,
+              updated_at: new Date().toISOString()
+            }, { onConflict: 'student_id' }).then(() => {})
           }
 
           profileMap.set(student.id, newProfile)
@@ -705,12 +883,33 @@ export async function getStudentFeeProfile(studentId: string): Promise<StudentFe
 }
 
 export async function createStudentFeeProfile(profile: Omit<StudentFeeProfile, 'id'>): Promise<StudentFeeProfile> {
+  const supabase = createAdminClient()
   const newProfile: StudentFeeProfile = {
     ...profile,
     id: `sfp_${Date.now()}`,
     isAutoDetected: true,
     syncedAt: new Date().toISOString()
   }
+
+  try {
+    if (profile.structureId) {
+      await supabase.from('student_fee_profiles').upsert({
+        student_id: profile.studentId,
+        structure_id: profile.structureId,
+        discount_id: profile.discountId || null,
+        custom_adjustment: profile.customAdjustment || 0,
+        net_fee: profile.netFee,
+        paid_fee: profile.paidFee,
+        due_fee: profile.dueFee,
+        late_fine_accrued: profile.lateFineAccrued,
+        status: profile.status,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'student_id' })
+    }
+  } catch (err) {
+    console.warn('Supabase createStudentFeeProfile error:', err)
+  }
+
   MOCK_STUDENT_PROFILES.push(newProfile)
   return newProfile
 }
@@ -726,26 +925,45 @@ export async function assignFeeStructureToStudent(params: {
   discountId?: string
   customAdjustment?: number
 }): Promise<StudentFeeProfile> {
-  ensureDefaultFeeStructures()
-  ensureDefaultDiscounts()
+  const supabase = createAdminClient()
 
-  let profileIndex = MOCK_STUDENT_PROFILES.findIndex(p => p.studentId === params.studentId)
-  if (profileIndex === -1) {
-    await syncStudentsFromDirectory()
-    profileIndex = MOCK_STUDENT_PROFILES.findIndex(p => p.studentId === params.studentId)
+  // 1. Ensure master fee structures are available
+  if (MOCK_STRUCTURES.length === 0) {
+    await getFeeStructures()
   }
 
-  if (profileIndex === -1) {
-    throw new Error('Student fee profile not found in directory')
+  let structure = MOCK_STRUCTURES.find(s => s.id === params.structureId)
+  if (!structure) {
+    const { data: dbStruct } = await supabase.from('fee_structures').select('*').eq('id', params.structureId).single()
+    if (dbStruct) {
+      structure = {
+        id: dbStruct.id,
+        name: dbStruct.name,
+        courseId: dbStruct.course_id,
+        courseName: params.courseName || 'General Curriculum',
+        batchYear: dbStruct.batch_year,
+        frequency: dbStruct.frequency,
+        totalAmount: Number(dbStruct.total_amount) || 0,
+        dueDate: dbStruct.due_date,
+        gracePeriodDays: Number(dbStruct.grace_period_days) || 7,
+        lateFinePerDay: Number(dbStruct.late_fine_per_day) || 50,
+        maxLateFine: Number(dbStruct.max_late_fine) || 1500,
+        items: [],
+        isActive: dbStruct.is_active ?? true,
+        createdAt: dbStruct.created_at?.split('T')[0] || new Date().toISOString().split('T')[0]
+      }
+    }
   }
 
-  const profile = MOCK_STUDENT_PROFILES[profileIndex]
-  const structure = MOCK_STRUCTURES.find(s => s.id === params.structureId)
   if (!structure) {
     throw new Error('Selected fee structure does not exist')
   }
 
-  // Calculate discount
+  // 2. Ensure discounts are available if requested
+  if (params.discountId && params.discountId !== 'none' && MOCK_DISCOUNTS.length === 0) {
+    await getFeeDiscounts()
+  }
+
   let discountAmount = 0
   let discountName: string | undefined = undefined
   if (params.discountId && params.discountId !== 'none') {
@@ -753,87 +971,125 @@ export async function assignFeeStructureToStudent(params: {
     if (discount) {
       discountName = discount.name
       discountAmount = discount.discountType === 'percentage'
-        ? Math.round((structure.totalAmount * discount.value) / 100)
-        : discount.value
+        ? Math.round((Number(structure.totalAmount) * Number(discount.value)) / 100)
+        : Number(discount.value) || 0
     }
   }
 
-  const customAdjustment = params.customAdjustment || 0
-  const netFee = Math.max(0, structure.totalAmount - discountAmount + customAdjustment)
-  const remainingDue = Math.max(0, netFee + profile.lateFineAccrued - profile.paidFee)
+  // 3. Find current profile for this student
+  let profile = MOCK_STUDENT_PROFILES.find(p => p.studentId === params.studentId)
+  if (!profile) {
+    const syncRes = await syncStudentsFromDirectory()
+    profile = syncRes.profiles.find(p => p.studentId === params.studentId)
+  }
 
-  // Rebuild installments with updated fee structure
+  const paidFee = profile?.paidFee || 0
+  const lateFineAccrued = profile?.lateFineAccrued || 0
+  const customAdjustment = Number(params.customAdjustment || 0)
+  const netFee = Math.max(0, structure.totalAmount - discountAmount + customAdjustment)
+  const remainingDue = Math.max(0, netFee + lateFineAccrued - paidFee)
+  const status: FeePaymentStatus = remainingDue === 0 ? 'paid' : (paidFee > 0 ? 'partial' : 'unpaid')
+
+  // 4. Upsert student fee profile into Supabase
+  const { error: profileUpsertError } = await supabase.from('student_fee_profiles').upsert({
+    student_id: params.studentId,
+    structure_id: structure.id,
+    discount_id: params.discountId && params.discountId !== 'none' ? params.discountId : null,
+    custom_adjustment: customAdjustment,
+    net_fee: netFee,
+    paid_fee: paidFee,
+    due_fee: remainingDue,
+    late_fine_accrued: lateFineAccrued,
+    status: status,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'student_id' })
+
+  if (profileUpsertError) {
+    console.error('Supabase assignFeeStructureToStudent error:', profileUpsertError)
+    throw new Error(`Database error saving student fee structure: ${profileUpsertError.message}`)
+  }
+
+  // 5. Replace installments in fee_installments table
+  await supabase.from('fee_installments').delete().eq('student_id', params.studentId)
+
   const inst1Amount = Math.ceil(netFee / 2)
   const inst2Amount = netFee - inst1Amount
 
-  const installments: FeeInstallment[] = [
+  const installmentsToInsert = [
     {
-      id: `inst_${profile.studentId}_1`,
-      studentId: profile.studentId,
-      installmentNumber: 1,
-      title: 'Term 1 Installment',
+      student_id: params.studentId,
+      installment_number: 1,
       amount: inst1Amount,
-      dueDate: structure.dueDate,
-      paidAmount: Math.min(profile.paidFee, inst1Amount),
-      lateFine: 0,
-      status: profile.paidFee >= inst1Amount ? 'paid' : profile.paidFee > 0 ? 'partial' : 'unpaid'
+      due_date: structure.dueDate || new Date().toISOString().split('T')[0],
+      paid_amount: Math.min(paidFee, inst1Amount),
+      late_fine: 0,
+      status: paidFee >= inst1Amount ? 'paid' : paidFee > 0 ? 'partial' : 'unpaid'
     },
     {
-      id: `inst_${profile.studentId}_2`,
-      studentId: profile.studentId,
-      installmentNumber: 2,
-      title: 'Term 2 Installment',
+      student_id: params.studentId,
+      installment_number: 2,
       amount: inst2Amount,
-      dueDate: '2026-12-15',
-      paidAmount: Math.max(0, profile.paidFee - inst1Amount),
-      lateFine: 0,
-      status: profile.paidFee >= netFee ? 'paid' : (profile.paidFee - inst1Amount) > 0 ? 'partial' : 'unpaid'
+      due_date: '2026-12-15',
+      paid_amount: Math.max(0, paidFee - inst1Amount),
+      late_fine: 0,
+      status: paidFee >= netFee ? 'paid' : (paidFee - inst1Amount) > 0 ? 'partial' : 'unpaid'
     }
   ]
 
-  let status: FeePaymentStatus = 'unpaid'
-  if (remainingDue === 0) {
-    status = 'paid'
-  } else if (profile.paidFee > 0) {
-    status = 'partial'
-  }
+  const { data: dbInsts } = await supabase
+    .from('fee_installments')
+    .insert(installmentsToInsert)
+    .select()
+
+  const installments: FeeInstallment[] = (dbInsts || installmentsToInsert).map((i: any, idx: number) => ({
+    id: i.id || `inst_${params.studentId}_${idx + 1}`,
+    studentId: params.studentId,
+    installmentNumber: i.installment_number,
+    title: `Term ${i.installment_number} Installment`,
+    amount: Number(i.amount) || 0,
+    dueDate: i.due_date,
+    paidAmount: Number(i.paid_amount) || 0,
+    lateFine: Number(i.late_fine) || 0,
+    status: (i.status as FeePaymentStatus) || 'unpaid',
+    paidAt: i.paid_at || undefined
+  }))
+
+  const courseId = params.courseId || structure.courseId
+  const courseName = params.courseName || structure.courseName
 
   const updated: StudentFeeProfile = {
-    ...profile,
+    id: profile?.id || `sfp_${params.studentId}`,
+    studentId: params.studentId,
+    studentName: profile?.studentName || 'Student',
+    studentAvatar: profile?.studentAvatar,
+    rollNumber: profile?.rollNumber || `GVM-2026-${params.studentId.replace(/-/g, '').slice(-4).toUpperCase()}`,
+    email: profile?.email || '',
     structureId: structure.id,
     structureName: structure.name,
-    courseId: params.courseId || structure.courseId,
-    courseName: params.courseName || structure.courseName,
+    courseId,
+    courseName,
+    className: profile?.className || 'Class of 2026',
     discountId: params.discountId === 'none' ? undefined : params.discountId,
     discountName,
     discountAmount,
     customAdjustment,
     netFee,
+    paidFee,
     dueFee: remainingDue,
+    lateFineAccrued,
     status,
     installments,
+    isAutoDetected: true,
     syncedAt: new Date().toISOString()
   }
 
-  // Persist to Supabase student_fee_profiles
-  try {
-    const supabase = createAdminClient()
-    await supabase.from('student_fee_profiles').upsert({
-      student_id: profile.studentId,
-      structure_id: structure.id,
-      discount_id: params.discountId && params.discountId !== 'none' ? params.discountId : null,
-      custom_adjustment: customAdjustment,
-      net_fee: netFee,
-      paid_fee: profile.paidFee,
-      due_fee: remainingDue,
-      late_fine_accrued: profile.lateFineAccrued,
-      status: status
-    }, { onConflict: 'student_id' })
-  } catch (err) {
-    console.warn('Supabase assignFeeStructureToStudent error:', err)
+  const existingIdx = MOCK_STUDENT_PROFILES.findIndex(p => p.studentId === params.studentId)
+  if (existingIdx !== -1) {
+    MOCK_STUDENT_PROFILES[existingIdx] = updated
+  } else {
+    MOCK_STUDENT_PROFILES.push(updated)
   }
 
-  MOCK_STUDENT_PROFILES[profileIndex] = updated
   revalidatePath('/admin/fees')
   revalidatePath('/student/fees')
   return updated
