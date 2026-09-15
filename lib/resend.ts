@@ -107,6 +107,8 @@ export async function sendEmail({
 
 /**
  * Standard branded HTML email template for GVM App notifications
+/**
+ * Standard branded HTML email template for GVM App notifications
  */
 export function createEmailTemplate({
   title,
@@ -114,7 +116,11 @@ export function createEmailTemplate({
   bodyContent,
   ctaText,
   ctaUrl,
-  footerText = '© GVM App. All rights reserved.',
+  footerText = '© GVM Educational Institute. All rights reserved.',
+  instituteName = 'GVM Educational Institute',
+  instituteSubtitle = 'Learning & Institution Management System',
+  brandColor = '#4f46e5',
+  logoUrl,
 }: {
   title: string
   previewText?: string
@@ -122,6 +128,10 @@ export function createEmailTemplate({
   ctaText?: string
   ctaUrl?: string
   footerText?: string
+  instituteName?: string
+  instituteSubtitle?: string
+  brandColor?: string
+  logoUrl?: string
 }): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -130,37 +140,38 @@ export function createEmailTemplate({
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${title}</title>
 </head>
-<body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e2e8f0;">
-  ${previewText ? `<div style="display:none;font-size:1px;color:#0f172a;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${previewText}</div>` : ''}
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#0f172a;width:100%;padding:32px 16px;">
+<body style="margin:0;padding:0;background-color:#0b0f19;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e2e8f0;">
+  ${previewText ? `<div style="display:none;font-size:1px;color:#0b0f19;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${previewText}</div>` : ''}
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#0b0f19;width:100%;padding:32px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background-color:#1e293b;border-radius:16px;border:1px solid #334155;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.4);">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:580px;background-color:#131b2e;border-radius:16px;border:1px solid #1e293b;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);padding:28px 32px;text-align:left;">
-              <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">GVM App</h1>
-              <p style="margin:4px 0 0 0;font-size:13px;color:#e0e7ff;font-weight:500;">Learning & Institution Management System</p>
+            <td style="background:linear-gradient(135deg, ${brandColor} 0%, #312e81 100%);padding:28px 32px;text-align:left;">
+              ${logoUrl ? `<img src="${logoUrl}" alt="${instituteName}" style="max-height:36px;margin-bottom:12px;display:block;" />` : ''}
+              <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">${instituteName}</h1>
+              <p style="margin:4px 0 0 0;font-size:13px;color:#e0e7ff;font-weight:500;">${instituteSubtitle}</p>
             </td>
           </tr>
           
           <!-- Content -->
           <tr>
             <td style="padding:32px;">
-              <h2 style="margin:0 0 16px 0;font-size:18px;font-weight:600;color:#f8fafc;">${title}</h2>
-              <div style="font-size:14px;line-height:1.6;color:#cbd5e1;margin-bottom:24px;">
+              <h2 style="margin:0 0 16px 0;font-size:18px;font-weight:600;color:#f8fafc;letter-spacing:-0.01em;">${title}</h2>
+              <div style="font-size:14px;line-height:1.65;color:#cbd5e1;margin-bottom:24px;">
                 ${bodyContent}
               </div>
               
               ${ctaText && ctaUrl ? `
               <div style="margin:28px 0;text-align:left;">
-                <a href="${ctaUrl}" target="_blank" style="background-color:#4f46e5;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;box-shadow:0 4px 12px rgba(79,70,229,0.35);">
+                <a href="${ctaUrl}" target="_blank" style="background-color:${brandColor};color:#ffffff;padding:12px 26px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;display:inline-block;box-shadow:0 4px 14px rgba(79,70,229,0.35);">
                   ${ctaText} &rarr;
                 </a>
               </div>
               ` : ''}
 
-              <hr style="border:none;border-top:1px solid #334155;margin:28px 0 20px 0;" />
+              <hr style="border:none;border-top:1px solid #1e293b;margin:28px 0 20px 0;" />
               
               <p style="margin:0;font-size:12px;color:#64748b;line-height:1.5;">
                 ${footerText}
@@ -174,3 +185,18 @@ export function createEmailTemplate({
 </body>
 </html>`
 }
+
+/**
+ * Replaces {{variable_name}} tokens in templates with actual values
+ */
+export function renderMergeVariables(
+  text: string,
+  variables: Record<string, string | number | boolean | undefined | null>
+): string {
+  if (!text) return ''
+  return text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key) => {
+    const val = variables[key]
+    return val !== undefined && val !== null ? String(val) : `{{${key}}}`
+  })
+}
+

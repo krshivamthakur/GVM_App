@@ -10,7 +10,8 @@ import {
   BarChart, 
   ShieldCheck,
   UserPlus,
-  GraduationCap
+  GraduationCap,
+  Mail
 } from 'lucide-react'
 
 export function AdminSidebar() {
@@ -23,6 +24,7 @@ export function AdminSidebar() {
     { href: '/admin/users', label: 'User Management', icon: ShieldCheck },
     { href: '/admin/teachers', label: 'Teachers Pipeline', icon: UserCheck },
     { href: '/admin/students', label: 'Student Directory', icon: GraduationCap },
+    { href: '/admin/mail', label: 'Mail & Setups', icon: Mail },
     { href: '/admin/notifications', label: 'Broadcasts', icon: ShieldCheck },
     { href: '/admin/reports', label: 'System Reports', icon: BarChart },
   ]

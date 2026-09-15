@@ -18,8 +18,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Education LMS',
-  description: 'Enterprise-grade Learning Management System with Student, Teacher, and Admin Portals.',
+  title: 'GVM',
+  description: 'Gyan-Vidya Mandir.',
 }
 
 export default function RootLayout({

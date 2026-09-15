@@ -44,6 +44,7 @@ export const DEFAULT_NAV_LABELS: Record<string, string> = {
   '/admin/users': 'Users',
   '/admin/shorts': 'Shorts Studio',
   '/admin/chat': 'Chat & Moderation',
+  '/admin/mail': 'Mail & Setups',
   '/admin/notifications': 'Notifications',
   '/admin/settings': 'Settings',
 

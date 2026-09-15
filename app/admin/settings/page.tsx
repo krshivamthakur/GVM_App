@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import {
   Settings,
   Shield,
@@ -40,7 +41,8 @@ import {
   Compass,
   BookmarkCheck,
   LayoutDashboard,
-  HelpCircle
+  HelpCircle,
+  Mail
 } from 'lucide-react'
 import {
   usePlatformSettings,
@@ -62,6 +64,7 @@ const ADMIN_NAV_CONFIG = [
   { href: '/admin/users', defaultLabel: 'Users', icon: ShieldCheck },
   { href: '/admin/shorts', defaultLabel: 'Shorts Studio', icon: Flame },
   { href: '/admin/chat', defaultLabel: 'Chat & Moderation', icon: MessageSquare },
+  { href: '/admin/mail', defaultLabel: 'Mail & Setups', icon: Mail },
   { href: '/admin/notifications', defaultLabel: 'Notifications', icon: Bell },
   { href: '/admin/settings', defaultLabel: 'Settings', icon: Settings },
 ]
@@ -417,6 +420,15 @@ export default function AdminSettingsPage() {
           <Shield className="h-3.5 w-3.5" />
           <span>Curriculum & Shorts Policies</span>
         </button>
+
+        <Link
+          href="/admin/mail"
+          className="flex items-center gap-2 px-4 py-2.5 text-xs font-medium border-b-2 border-transparent text-muted-foreground hover:text-indigo-400 hover:border-indigo-500 transition-all whitespace-nowrap"
+        >
+          <Mail className="h-3.5 w-3.5 text-indigo-400" />
+          <span>Mail & Templates Studio</span>
+          <ExternalLink className="h-2.5 w-2.5 text-muted-foreground" />
+        </Link>
 
         <button
           onClick={() => setActiveTab('danger')}

@@ -27,7 +27,8 @@ import {
   BarChart3,
   UserCircle,
   TrendingUp,
-  ShieldCheck
+  ShieldCheck,
+  Mail
 } from 'lucide-react'
 
 interface NavItem {
@@ -78,6 +79,7 @@ export function AppSidebar({ isCollapsed, onToggleCollapse, isMobile = false }: 
     { title: getNavTitle('/admin/shorts', 'Shorts Studio'), href: '/admin/shorts', icon: Flame },
     { title: getNavTitle('/admin/chat', 'Chat & Moderation'), href: '/admin/chat', icon: MessageSquare },
     { title: getNavTitle('/admin/notifications', 'Notifications'), href: '/admin/notifications', icon: Bell },
+    { title: getNavTitle('/admin/mail', 'Mail & Setups'), href: '/admin/mail', icon: Mail },
     { title: getNavTitle('/admin/settings', 'Settings'), href: '/admin/settings', icon: Settings },
   ]
 
