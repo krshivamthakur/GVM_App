@@ -372,6 +372,13 @@ export const dataStore = {
     notes.push(newNote)
     return newNote
   },
+  updateNote(noteId: string, updates: Partial<Note>): Note | null {
+    if (activeUser.role === 'student') return null
+    const idx = notes.findIndex((n) => n.id === noteId)
+    if (idx === -1) return null
+    notes[idx] = { ...notes[idx], ...updates }
+    return notes[idx]
+  },
   deleteNote(noteId: string): boolean {
     if (activeUser.role === 'student') return false
     const initialLen = notes.length

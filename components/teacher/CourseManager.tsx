@@ -1,16 +1,18 @@
 'use client'
 
-import { useState } from 'react'
-import { CourseWithCurriculum } from '@/types/database'
+import { useState, useRef } from 'react'
+import { CourseWithCurriculum, Note } from '@/types/database'
 import { 
   createChapter, 
   deleteChapter, 
   createLecture, 
   deleteLecture, 
   addNoteToLecture, 
+  updateNote,
   deleteNote 
 } from '@/actions/lecture-actions'
 import { toggleCoursePublish } from '@/actions/course-actions'
+import { uploadFile } from '@/actions/upload-actions'
 import { 
   Plus, 
   Trash2, 
@@ -24,7 +26,12 @@ import {
   ChevronUp, 
   PlaySquare,
   Sparkles,
-  Layers
+  Layers,
+  ExternalLink,
+  Edit2,
+  Loader2,
+  Link as LinkIcon,
+  X
 } from 'lucide-react'
 
 export function CourseManager({ course }: { course: CourseWithCurriculum }) {
@@ -45,9 +52,27 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
   const [isFreePreview, setIsFreePreview] = useState(false)
   const [pdfTitle, setPdfTitle] = useState('')
   const [pdfUrl, setPdfUrl] = useState('')
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false)
+  const [pdfUploadError, setPdfUploadError] = useState('')
+
+  // Notes Management Modal state (for existing lectures)
+  const [activeLectureForNotes, setActiveLectureForNotes] = useState<{
+    id: string
+    title: string
+    notes?: Note[]
+  } | null>(null)
+  const [newNoteTitle, setNewNoteTitle] = useState('')
+  const [newNoteUrl, setNewNoteUrl] = useState('')
+  const [isUploadingModalPdf, setIsUploadingModalPdf] = useState(false)
+  const [modalUploadError, setModalUploadError] = useState('')
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
+  const [editNoteTitle, setEditNoteTitle] = useState('')
+  const [editNoteUrl, setEditNoteUrl] = useState('')
 
   // Submitting states
   const [submitting, setSubmitting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const modalFileInputRef = useRef<HTMLInputElement>(null)
 
   const handleTogglePublish = async () => {
     setIsTogglingPublish(true)
@@ -80,6 +105,62 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
     }
   }
 
+  // Handle PDF Upload for Lecture Creation
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingPdf(true)
+    setPdfUploadError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await uploadFile(formData, 'lecture-notes')
+
+      if (res.success && res.url) {
+        setPdfUrl(res.url)
+        if (!pdfTitle.trim()) {
+          const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
+          setPdfTitle(cleanName)
+        }
+      } else {
+        setPdfUploadError(res.error || 'Failed to upload PDF file')
+      }
+    } catch (err: unknown) {
+      setPdfUploadError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setIsUploadingPdf(false)
+    }
+  }
+
+  // Handle PDF Upload inside Manage Notes Modal
+  const handleModalPdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploadingModalPdf(true)
+    setModalUploadError('')
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await uploadFile(formData, 'lecture-notes')
+
+      if (res.success && res.url) {
+        setNewNoteUrl(res.url)
+        if (!newNoteTitle.trim()) {
+          const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
+          setNewNoteTitle(cleanName)
+        }
+      } else {
+        setModalUploadError(res.error || 'Failed to upload PDF file')
+      }
+    } catch (err: unknown) {
+      setModalUploadError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setIsUploadingModalPdf(false)
+    }
+  }
+
   const handleCreateLecture = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!activeChapterForLecture || !lectureTitle.trim()) return
@@ -105,13 +186,13 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
         return
       }
 
-      // Attach PDF notes if provided
-      if (lecRes.lecture && pdfTitle.trim()) {
+      // Attach PDF notes only if a valid title AND real URL are provided (NO dummy fallbacks)
+      if (lecRes.lecture && pdfTitle.trim() && pdfUrl.trim()) {
         await addNoteToLecture(
           {
             lecture_id: lecRes.lecture.id,
-            title: pdfTitle,
-            file_path: pdfUrl || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+            title: pdfTitle.trim(),
+            file_path: pdfUrl.trim(),
             file_type: 'application/pdf'
           },
           course.id
@@ -124,6 +205,7 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
       setVideoUrl('')
       setPdfTitle('')
       setPdfUrl('')
+      setPdfUploadError('')
       setIsFreePreview(false)
       setActiveChapterForLecture(null)
     } finally {
@@ -140,6 +222,84 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
   const handleDeleteLecture = async (lecId: string) => {
     if (confirm('Delete this lecture?')) {
       await deleteLecture(lecId, course.id)
+    }
+  }
+
+  // Add Note from Modal
+  const handleAddNoteToActiveLecture = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!activeLectureForNotes || !newNoteTitle.trim() || !newNoteUrl.trim()) return
+
+    setSubmitting(true)
+    try {
+      const res = await addNoteToLecture(
+        {
+          lecture_id: activeLectureForNotes.id,
+          title: newNoteTitle.trim(),
+          file_path: newNoteUrl.trim(),
+          file_type: 'application/pdf'
+        },
+        course.id
+      )
+
+      if (res.success && res.note) {
+        // Update local modal view
+        setActiveLectureForNotes({
+          ...activeLectureForNotes,
+          notes: [...(activeLectureForNotes.notes || []), res.note]
+        })
+        setNewNoteTitle('')
+        setNewNoteUrl('')
+        setModalUploadError('')
+      } else {
+        alert(res.error || 'Failed to add note')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Update existing note
+  const handleUpdateNote = async (noteId: string) => {
+    if (!editNoteTitle.trim() || !editNoteUrl.trim()) return
+
+    setSubmitting(true)
+    try {
+      const res = await updateNote(noteId, course.id, {
+        title: editNoteTitle.trim(),
+        file_path: editNoteUrl.trim()
+      })
+
+      if (res.success && activeLectureForNotes) {
+        setActiveLectureForNotes({
+          ...activeLectureForNotes,
+          notes: (activeLectureForNotes.notes || []).map((n) =>
+            n.id === noteId ? { ...n, title: editNoteTitle.trim(), file_path: editNoteUrl.trim() } : n
+          )
+        })
+        setEditingNoteId(null)
+      } else {
+        alert(res.error || 'Failed to update note')
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Delete note from modal
+  const handleDeleteNote = async (noteId: string) => {
+    if (!confirm('Delete this note?')) return
+    setSubmitting(true)
+    try {
+      const res = await deleteNote(noteId, course.id)
+      if (res.success && activeLectureForNotes) {
+        setActiveLectureForNotes({
+          ...activeLectureForNotes,
+          notes: (activeLectureForNotes.notes || []).filter((n) => n.id !== noteId)
+        })
+      }
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -288,17 +448,44 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
                           </div>
                           <div className="flex items-center gap-3 text-[11px] text-zinc-500 mt-0.5">
                             <span>{Math.round((lecture.duration || 600) / 60)} mins</span>
-                            {lecture.notes && lecture.notes.length > 0 && (
-                              <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                            {lecture.notes && lecture.notes.length > 0 ? (
+                              <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1 font-medium">
                                 <FileText className="w-3 h-3" />
                                 {lecture.notes.length} PDF note(s)
                               </span>
+                            ) : (
+                              <span className="text-zinc-400">No notes</span>
                             )}
                           </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
+                        {/* Manage / Attach PDF Notes Button */}
+                        <button
+                          onClick={() => {
+                            setActiveLectureForNotes({
+                              id: lecture.id,
+                              title: lecture.title,
+                              notes: lecture.notes || []
+                            })
+                            setNewNoteTitle('')
+                            setNewNoteUrl('')
+                            setModalUploadError('')
+                            setEditingNoteId(null)
+                          }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-700 text-xs font-semibold text-zinc-700 dark:text-zinc-300 transition-colors shadow-sm"
+                          title="Attach or Manage PDF Notes"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-blue-500" />
+                          <span className="hidden sm:inline">Notes</span>
+                          {lecture.notes && lecture.notes.length > 0 && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
+                              {lecture.notes.length}
+                            </span>
+                          )}
+                        </button>
+
                         <button
                           onClick={() => handleDeleteLecture(lecture.id)}
                           className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
@@ -318,16 +505,21 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
 
       {/* Add Chapter Modal */}
       {showAddChapter && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800">
-            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mb-1">
-              Add New Chapter
-            </h3>
-            <p className="text-xs text-zinc-500 mb-4">
-              Enter the module title and an optional summary.
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-xl border border-zinc-200 dark:border-zinc-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                Add Chapter
+              </h3>
+              <button
+                onClick={() => setShowAddChapter(false)}
+                className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
-            <form onSubmit={handleCreateChapter} className="space-y-4">
+            <form onSubmit={handleCreateChapter} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
                   Chapter Title
@@ -335,7 +527,7 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Chapter 3 — Object Oriented Programming"
+                  placeholder="e.g. Unit 1 — Kinematics & Mechanics"
                   value={chapterTitle}
                   onChange={(e) => setChapterTitle(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -344,11 +536,11 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Description / Topics Covered
+                  Description (Optional)
                 </label>
                 <textarea
-                  rows={3}
-                  placeholder="Briefly describe what students will learn in this chapter..."
+                  rows={2}
+                  placeholder="Brief summary of what this chapter covers..."
                   value={chapterDesc}
                   onChange={(e) => setChapterDesc(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -378,14 +570,19 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
 
       {/* Add Lecture Modal */}
       {activeChapterForLecture && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-zinc-900 p-6 shadow-2xl border border-zinc-200 dark:border-zinc-800 my-8">
-            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100 mb-1">
-              Add New Lecture
-            </h3>
-            <p className="text-xs text-zinc-500 mb-4">
-              Configure lesson details, video source, and attach supplementary PDF notes.
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="w-full max-w-lg bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-xl border border-zinc-200 dark:border-zinc-800 space-y-4 my-8">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                Add Lecture
+              </h3>
+              <button
+                onClick={() => setActiveChapterForLecture(null)}
+                className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
 
             <form onSubmit={handleCreateLecture} className="space-y-4">
               <div>
@@ -395,7 +592,7 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Lecture 02: Classes & Objects"
+                  placeholder="e.g. Lecture 01: Newton's Laws & Vector Breakdown"
                   value={lectureTitle}
                   onChange={(e) => setLectureTitle(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -449,38 +646,85 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. https://drive.google.com/file/d/.../view or YouTube / MP4 URL"
+                  placeholder="e.g. https://drive.google.com/file/d/.../view or YouTube URL"
                   value={videoUrl}
                   onChange={(e) => setVideoUrl(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs sm:text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-500"
                 />
                 <span className="text-[11px] text-zinc-400 mt-1 block">
-                  Paste Google Drive shared links, YouTube videos, Vimeo streams, or direct MP4 files.
+                  Paste Google Drive shared link, YouTube link, or direct MP4 stream URL.
                 </span>
               </div>
 
-              {/* PDF Study Material Section */}
-              <div className="p-3.5 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800 space-y-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
-                  <FileText className="w-4 h-4 text-purple-600" />
-                  <span>Supplementary PDF Notes (Optional)</span>
+              {/* PDF Study Material Section (Real Upload + Link Options) */}
+              <div className="p-4 rounded-xl bg-zinc-50 dark:bg-zinc-950/60 border border-zinc-200 dark:border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-zinc-800 dark:text-zinc-200">
+                    <FileText className="w-4 h-4 text-purple-600" />
+                    <span>Supplementary PDF Notes (Optional)</span>
+                  </div>
+                  {pdfUrl && (
+                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-bold">
+                      <Check className="w-3.5 h-3.5" />
+                      PDF Attached
+                    </span>
+                  )}
                 </div>
 
                 <input
                   type="text"
-                  placeholder="Note Title: e.g. OOP Formulas & Cheatsheet PDF"
+                  placeholder="Note Title: e.g. Kinematics Handwritten Notes & Formulas"
                   value={pdfTitle}
                   onChange={(e) => setPdfTitle(e.target.value)}
                   className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs"
                 />
 
-                <input
-                  type="text"
-                  placeholder="PDF Download / Viewer URL"
-                  value={pdfUrl}
-                  onChange={(e) => setPdfUrl(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-mono text-[11px]"
-                />
+                {/* File Upload OR Link Input */}
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept=".pdf,application/pdf"
+                      onChange={handlePdfUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      disabled={isUploadingPdf}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-950 dark:text-purple-300 text-xs font-medium transition-colors"
+                    >
+                      {isUploadingPdf ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Uploading File...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          <span>Upload PDF Document</span>
+                        </>
+                      )}
+                    </button>
+                    <span className="text-[11px] text-zinc-400">or paste link below</span>
+                  </div>
+
+                  {pdfUploadError && (
+                    <p className="text-[11px] text-rose-500 font-medium">{pdfUploadError}</p>
+                  )}
+
+                  <input
+                    type="text"
+                    placeholder="PDF Link (Google Drive, Dropbox, or Direct PDF URL)"
+                    value={pdfUrl}
+                    onChange={(e) => setPdfUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-mono text-[11px]"
+                  />
+                  <p className="text-[10px] text-zinc-400">
+                    Students will be able to view and download this exact file.
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -497,6 +741,212 @@ export function CourseManager({ course }: { course: CourseWithCurriculum }) {
                   className="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-600 text-white hover:bg-purple-500 shadow-sm"
                 >
                   {submitting ? 'Saving...' : 'Save & Publish Lecture'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Existing Lecture Notes Modal */}
+      {activeLectureForNotes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150 overflow-y-auto">
+          <div className="w-full max-w-lg bg-white dark:bg-zinc-900 rounded-2xl p-6 shadow-xl border border-zinc-200 dark:border-zinc-800 space-y-4 my-8">
+            <div className="flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 pb-3">
+              <div>
+                <h3 className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                  Manage PDF Notes
+                </h3>
+                <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">
+                  {activeLectureForNotes.title}
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveLectureForNotes(null)}
+                className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* List of currently attached notes */}
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-zinc-700 dark:text-zinc-300">
+                Attached Notes ({(activeLectureForNotes.notes || []).length})
+              </h4>
+
+              {(activeLectureForNotes.notes || []).length === 0 ? (
+                <p className="text-xs text-zinc-400 italic p-3 bg-zinc-50 dark:bg-zinc-950 rounded-xl">
+                  No PDF notes attached to this lecture yet.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {(activeLectureForNotes.notes || []).map((note) => {
+                    const isEditing = editingNoteId === note.id
+
+                    if (isEditing) {
+                      return (
+                        <div
+                          key={note.id}
+                          className="p-3 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/50 dark:bg-blue-950/20 space-y-2"
+                        >
+                          <input
+                            type="text"
+                            value={editNoteTitle}
+                            onChange={(e) => setEditNoteTitle(e.target.value)}
+                            placeholder="Note Title"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-semibold"
+                          />
+                          <input
+                            type="text"
+                            value={editNoteUrl}
+                            onChange={(e) => setEditNoteUrl(e.target.value)}
+                            placeholder="PDF Link / Storage URL"
+                            className="w-full px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-mono"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditingNoteId(null)}
+                              className="px-2.5 py-1 rounded-md text-[11px] text-zinc-500 hover:bg-zinc-200/60 dark:hover:bg-zinc-800"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateNote(note.id)}
+                              disabled={submitting}
+                              className="px-3 py-1 rounded-md text-[11px] font-bold bg-blue-600 text-white hover:bg-blue-500"
+                            >
+                              Save Changes
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div
+                        key={note.id}
+                        className="flex items-center justify-between p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950/40"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                          <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                              {note.title}
+                            </p>
+                            <a
+                              href={note.file_path}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[10px] text-blue-600 hover:underline truncate block max-w-xs font-mono"
+                            >
+                              {note.file_path}
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditingNoteId(note.id)
+                              setEditNoteTitle(note.title)
+                              setEditNoteUrl(note.file_path)
+                            }}
+                            className="p-1.5 text-zinc-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                            title="Edit Note"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteNote(note.id)}
+                            className="p-1.5 text-zinc-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                            title="Delete Note"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Add New Note Section */}
+            <form onSubmit={handleAddNoteToActiveLecture} className="pt-3 border-t border-zinc-100 dark:border-zinc-800 space-y-3">
+              <h4 className="text-xs font-bold text-zinc-800 dark:text-zinc-200">
+                Attach a New PDF Note
+              </h4>
+
+              <input
+                type="text"
+                required
+                placeholder="Note Title: e.g. Newton's 3 Laws Summary & Problems"
+                value={newNoteTitle}
+                onChange={(e) => setNewNoteTitle(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs"
+              />
+
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    ref={modalFileInputRef}
+                    accept=".pdf,application/pdf"
+                    onChange={handleModalPdfUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={isUploadingModalPdf}
+                    onClick={() => modalFileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 text-xs font-medium transition-colors"
+                  >
+                    {isUploadingModalPdf ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-3.5 h-3.5" />
+                        <span>Upload PDF File</span>
+                      </>
+                    )}
+                  </button>
+                  <span className="text-[11px] text-zinc-400">or paste link below</span>
+                </div>
+
+                {modalUploadError && (
+                  <p className="text-[11px] text-rose-500 font-medium">{modalUploadError}</p>
+                )}
+
+                <input
+                  type="text"
+                  required
+                  placeholder="PDF Link (Google Drive, Dropbox, or Direct URL)"
+                  value={newNoteUrl}
+                  onChange={(e) => setNewNoteUrl(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 text-xs font-mono text-[11px]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveLectureForNotes(null)}
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || isUploadingModalPdf}
+                  className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white hover:bg-blue-500 shadow-sm"
+                >
+                  {submitting ? 'Saving Note...' : 'Save Note'}
                 </button>
               </div>
             </form>

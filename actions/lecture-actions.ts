@@ -338,6 +338,50 @@ export async function addNoteToLecture(data: NoteFormData, courseId: string): Pr
   return { success: true, note: fallback }
 }
 
+export async function updateNote(
+  noteId: string,
+  courseId: string,
+  data: Partial<NoteFormData>
+): Promise<{ success: boolean; note?: Note; error?: string }> {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {
+    return { success: false, error: 'Access denied: Only teachers and administrators can edit notes.' }
+  }
+
+  if (currentUser.role === 'teacher') {
+    const course = dataStore.getCourseById(courseId)
+    if (course && course.teacher_id !== currentUser.id) {
+      return { success: false, error: 'Forbidden: You can only edit notes in your own courses.' }
+    }
+  }
+
+  try {
+    const supabase = createAdminClient()
+    const { data: updatedNote, error } = await supabase
+      .from('notes')
+      .update(data)
+      .eq('id', noteId)
+      .select()
+      .single()
+
+    if (!error && updatedNote) {
+      dataStore.updateNote(noteId, data)
+      revalidatePath('/admin/courses')
+      revalidatePath(`/teacher/courses/${courseId}`)
+      revalidatePath(`/student/courses/${courseId}`)
+      return { success: true, note: updatedNote }
+    }
+  } catch (err) {
+    console.warn('Supabase updateNote error:', err)
+  }
+
+  const updated = dataStore.updateNote(noteId, data)
+  revalidatePath('/admin/courses')
+  revalidatePath(`/teacher/courses/${courseId}`)
+  revalidatePath(`/student/courses/${courseId}`)
+  return { success: !!updated, note: updated || undefined }
+}
+
 export async function deleteNote(noteId: string, courseId: string): Promise<{ success: boolean }> {
   const currentUser = await getCurrentUser()
   if (!currentUser || (currentUser.role !== 'teacher' && currentUser.role !== 'admin')) {

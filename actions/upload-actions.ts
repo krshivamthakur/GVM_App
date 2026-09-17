@@ -14,7 +14,7 @@ export async function uploadFile(
     }
 
     // Restrict course media uploads to teachers and admins
-    if ((bucket === 'course-thumbnails' || bucket === 'lecture-videos') && user.role !== 'teacher' && user.role !== 'admin') {
+    if (user.role !== 'teacher' && user.role !== 'admin') {
       return { success: false, error: 'Unauthorized: Only teachers and administrators can upload course media.' }
     }
 
@@ -23,49 +23,43 @@ export async function uploadFile(
       return { success: false, error: 'No file provided' }
     }
 
-    try {
-      const supabase = createAdminClient()
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
-      const filePath = `${fileName}`
+    const supabase = createAdminClient()
+    const rawExt = file.name.split('.').pop() || 'pdf'
+    const fileExt = rawExt.toLowerCase()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`
+    const filePath = `${fileName}`
 
-      const { data, error } = await supabase.storage
+    // Convert Web File stream to Buffer for Supabase storage
+    const arrayBuffer = await file.arrayBuffer()
+    const fileBuffer = Buffer.from(arrayBuffer)
+
+    const contentType = file.type || (bucket === 'lecture-notes' ? 'application/pdf' : 'application/octet-stream')
+
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, fileBuffer, {
+        contentType,
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (error) {
+      console.error(`Supabase storage direct upload error in ${bucket}:`, error)
+      return { success: false, error: error.message }
+    }
+
+    if (data) {
+      const { data: publicUrlData } = supabase.storage
         .from(bucket)
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        })
+        .getPublicUrl(filePath)
 
-      if (!error && data) {
-        const { data: publicUrlData } = supabase.storage
-          .from(bucket)
-          .getPublicUrl(filePath)
-
-        return { success: true, url: publicUrlData.publicUrl }
-      }
-    } catch (storageErr) {
-      console.warn('Supabase Storage direct upload error:', storageErr)
+      return { success: true, url: publicUrlData.publicUrl }
     }
 
-    // Fallback sample URL if buckets are not yet created
-    if (bucket === 'lecture-videos') {
-      return {
-        success: true,
-        url: '/videos/sample-short-1.mp4'
-      }
-    } else if (bucket === 'lecture-notes') {
-      return {
-        success: true,
-        url: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
-      }
-    } else {
-      return {
-        success: true,
-        url: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=80'
-      }
-    }
+    return { success: false, error: 'Failed to obtain public URL after upload' }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'File upload failed'
+    console.error('File upload error:', message)
     return { success: false, error: message }
   }
 }

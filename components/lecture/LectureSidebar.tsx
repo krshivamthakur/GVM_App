@@ -23,7 +23,7 @@ export function LectureSidebar({
   const progressPercentage = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
   return (
-    <aside className="w-80 shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col h-[calc(100vh-64px)] overflow-hidden">
+    <aside className="hidden lg:flex w-80 lg:w-88 shrink-0 border-l border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* Top Header */}
       <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50">
         <Link
