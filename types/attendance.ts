@@ -149,7 +149,7 @@ export interface AttendanceNotification {
 export interface AttendanceAuditLog {
   id: string
   recordId: string
-  action: 'created' | 'corrected' | 'deleted' | 'locked'
+  action: 'created' | 'corrected' | 'deleted' | 'locked' | 'proxy_marked'
   performedBy: string
   performedByName: string
   oldValue?: AttendanceStatus

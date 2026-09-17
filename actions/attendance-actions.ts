@@ -437,12 +437,22 @@ export async function getAttendanceForSession(
   )
 }
 
+export interface MarkAttendanceOptions {
+  markedByAdmin?: boolean
+  adminId?: string
+  adminName?: string
+  overrideTeacherId?: string
+  overrideTeacherName?: string
+  remarks?: string
+}
+
 export async function markBulkAttendance(
   classId: string,
   subjectId: string,
   date: string,
   teacherId: string,
-  records: Array<{ studentId: string; status: AttendanceStatus; notes?: string }>
+  records: Array<{ studentId: string; status: AttendanceStatus; notes?: string }>,
+  options?: MarkAttendanceOptions
 ): Promise<{ success: boolean; sessionId: string; error?: string }> {
   // Fetch class either from Supabase or memory
   let cls: AttendanceClass | undefined = MOCK_CLASSES.find(c => c.id === classId)
@@ -473,6 +483,12 @@ export async function markBulkAttendance(
 
   const sessionId = `sess_${classId}_${subject.id}_${date}`
 
+  const effectiveTeacherId = options?.overrideTeacherId || teacherId || cls.teacherId || 'teacher'
+  const effectiveTeacherName = options?.overrideTeacherName || cls.teacherName || 'Assigned Teacher'
+  const markedByLabel = options?.markedByAdmin
+    ? `Admin: ${options.adminName || 'Admin'} (proxy for ${effectiveTeacherName})`
+    : teacherId
+
   const newRecords: AttendanceRecord[] = records.map((rec, i) => {
     const student = cls!.students.find(s => s.id === rec.studentId)
     return {
@@ -487,7 +503,7 @@ export async function markBulkAttendance(
       date,
       status: rec.status,
       notes: rec.notes,
-      markedBy: teacherId,
+      markedBy: markedByLabel,
       markedAt: new Date().toISOString(),
     }
   })
@@ -499,8 +515,8 @@ export async function markBulkAttendance(
     subjectId: subject.id,
     subjectName: subject.name,
     date,
-    teacherId,
-    teacherName: cls.teacherName,
+    teacherId: effectiveTeacherId,
+    teacherName: effectiveTeacherName,
     lockStatus: 'open',
     submittedAt: new Date().toISOString(),
     totalStudents: records.length || cls.students.length,
@@ -522,8 +538,8 @@ export async function markBulkAttendance(
       subject_id: subject.id,
       subject_name: subject.name,
       date,
-      teacher_id: teacherId,
-      teacher_name: cls.teacherName,
+      teacher_id: effectiveTeacherId,
+      teacher_name: effectiveTeacherName,
       lock_status: 'open',
       submitted_at: newSession.submittedAt,
       total_students: newSession.totalStudents,
@@ -546,7 +562,7 @@ export async function markBulkAttendance(
         date,
         status: r.status,
         notes: r.notes || null,
-        marked_by: teacherId,
+        marked_by: markedByLabel,
         marked_at: r.markedAt,
       }))
 
@@ -571,8 +587,22 @@ export async function markBulkAttendance(
     attendanceSessions.push(newSession)
   }
 
+  // 3. Log administrative proxy action in audit log if marked by admin
+  if (options?.markedByAdmin) {
+    auditLog.push({
+      id: `audit_${Date.now()}`,
+      recordId: sessionId,
+      action: 'proxy_marked',
+      performedBy: options.adminId || 'admin',
+      performedByName: options.adminName || 'Administrator',
+      timestamp: new Date().toISOString(),
+      notes: `Admin recorded attendance for "${cls.name}" (${subject.name}) on behalf of teacher ${effectiveTeacherName}.${options.remarks ? ` Reason: ${options.remarks}` : ''}`,
+    })
+  }
+
   revalidatePath('/teacher/attendance')
   revalidatePath('/admin/attendance')
+  revalidatePath('/student/attendance')
   return { success: true, sessionId }
 }
 
