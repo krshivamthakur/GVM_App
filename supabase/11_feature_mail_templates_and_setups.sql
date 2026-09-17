@@ -8,23 +8,27 @@
 CREATE TABLE IF NOT EXISTS public.mail_settings (
     id TEXT PRIMARY KEY DEFAULT 'default',
     provider TEXT NOT NULL DEFAULT 'resend' CHECK (provider IN ('resend', 'smtp', 'system')),
-    sender_name TEXT NOT NULL DEFAULT 'GVM Educational Institute',
+    sender_name TEXT NOT NULL DEFAULT 'GVM',
+    institute_full_name TEXT DEFAULT 'Gyan Vidya Mandir',
+    institute_short_name TEXT DEFAULT 'GVM',
     sender_email TEXT NOT NULL DEFAULT 'onboarding@resend.dev',
     reply_to TEXT DEFAULT 'support@gvmedu.com',
     cc_emails TEXT DEFAULT '',
     bcc_emails TEXT DEFAULT '',
-    footer_text TEXT DEFAULT '© 2026 GVM Educational Institute. All rights reserved. 124 Knowledge Boulevard, Institutional Area.',
+    footer_text TEXT DEFAULT '© 2026 Gyan Vidya Mandir (GVM). All rights reserved. 124 Knowledge Boulevard, Institutional Area.',
     support_phone TEXT DEFAULT '+91 98765 43210',
     support_email TEXT DEFAULT 'support@gvmedu.com',
     brand_color TEXT DEFAULT '#4f46e5',
-    logo_url TEXT DEFAULT '',
+    logo_url TEXT DEFAULT '/gvm.png',
     auto_triggers JSONB NOT NULL DEFAULT '{
         "welcome_student": true,
         "course_enrollment": true,
         "fee_receipt": true,
         "attendance_alert": true,
         "teacher_approval": true,
-        "announcement_broadcast": true
+        "announcement_broadcast": true,
+        "institute_full_name": "Gyan Vidya Mandir",
+        "institute_short_name": "GVM"
     }'::jsonb,
     resend_api_key_override TEXT DEFAULT '',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -32,8 +36,8 @@ CREATE TABLE IF NOT EXISTS public.mail_settings (
 );
 
 -- Seed default mail settings if not exists
-INSERT INTO public.mail_settings (id)
-VALUES ('default')
+INSERT INTO public.mail_settings (id, sender_name, institute_full_name, institute_short_name, logo_url)
+VALUES ('default', 'GVM', 'Gyan Vidya Mandir', 'GVM', '/gvm.png')
 ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE public.mail_settings ENABLE ROW LEVEL SECURITY;

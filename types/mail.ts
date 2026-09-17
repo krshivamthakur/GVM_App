@@ -2,6 +2,8 @@ export interface MailSettings {
   id: string
   provider: 'resend' | 'smtp' | 'system'
   sender_name: string
+  institute_full_name?: string
+  institute_short_name?: string
   sender_email: string
   reply_to: string
   cc_emails: string
@@ -18,7 +20,9 @@ export interface MailSettings {
     attendance_alert: boolean
     teacher_approval: boolean
     announcement_broadcast: boolean
-    [key: string]: boolean
+    institute_full_name?: string
+    institute_short_name?: string
+    [key: string]: any
   }
   resend_api_key_override?: string
   updated_at?: string
@@ -59,16 +63,18 @@ export interface MailLog {
 export const DEFAULT_MAIL_SETTINGS: MailSettings = {
   id: 'default',
   provider: 'resend',
-  sender_name: 'GVM Educational Institute',
+  sender_name: 'GVM',
+  institute_full_name: 'Gyan Vidya Mandir',
+  institute_short_name: 'GVM',
   sender_email: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
-  reply_to: 'support@gvmedu.com',
+  reply_to: 'info@gyanvidyamandir.in',
   cc_emails: '',
   bcc_emails: '',
-  footer_text: '© 2026 GVM Educational Institute. All rights reserved. 124 Knowledge Boulevard, Institutional Area.',
+  footer_text: '© 2026 Gyan Vidya Mandir (GVM). All rights reserved. 124 Knowledge Boulevard, Institutional Area.',
   support_phone: '+91 98765 43210',
-  support_email: 'support@gvmedu.com',
+  support_email: 'info@gyanvidyamandir.in',
   brand_color: '#4f46e5',
-  logo_url: '',
+  logo_url: '/gvm.png',
   auto_triggers: {
     welcome_student: true,
     course_enrollment: true,
@@ -76,6 +82,8 @@ export const DEFAULT_MAIL_SETTINGS: MailSettings = {
     attendance_alert: true,
     teacher_approval: true,
     announcement_broadcast: true,
+    institute_full_name: 'Gyan Vidya Mandir',
+    institute_short_name: 'GVM',
   },
 }
 
@@ -99,7 +107,7 @@ export const DEFAULT_SYSTEM_TEMPLATES: MailTemplate[] = [
 <p>If you have any questions, our support desk is always here at {{support_email}}.</p>`,
     cta_text: 'Explore Your Student Portal',
     cta_url: '{{portal_url}}/student',
-    available_variables: ['student_name', 'student_email', 'institute_name', 'support_email', 'portal_url'],
+    available_variables: ['student_name', 'student_email', 'institute_name', 'institute_short_name', 'support_email', 'portal_url'],
     is_active: true,
     is_system: true,
   },

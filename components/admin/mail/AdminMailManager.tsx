@@ -9,6 +9,7 @@ import type {
 import {
   getMailSettingsAction,
   updateMailSettingsAction,
+  resetMailSettingsAction,
   getMailTemplatesAction,
   deleteMailTemplateAction,
   sendTestMailAction,
@@ -36,6 +37,10 @@ import {
   Eye,
   Check,
   Key,
+  RotateCcw,
+  Upload,
+  Image as ImageIcon,
+  Building2,
 } from 'lucide-react'
 import { formatDisplayDate } from '@/lib/utils'
 
@@ -102,10 +107,12 @@ export function AdminMailManager({
   // Mail Setup form state
   const [settingsForm, setSettingsForm] = useState<MailSettings>(initialSettings)
   const [isSavingSettings, setIsSavingSettings] = useState(false)
+  const [isResettingSettings, setIsResettingSettings] = useState(false)
   const [setupFeedback, setSetupFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const logoFileInputRef = React.useRef<HTMLInputElement>(null)
 
   // Diagnostic Test state
-  const [testEmail, setTestEmail] = useState('')
+  const [testEmail, setTestEmail] = useState('shivamimps1@gmail.com')
   const [testTemplateSlug, setTestTemplateSlug] = useState<string>('welcome_student')
   const [isTesting, setIsTesting] = useState(false)
   const [testFeedback, setTestFeedback] = useState<{ type: 'success' | 'error'; message: string; id?: string } | null>(null)
@@ -144,7 +151,8 @@ export function AdminMailManager({
       const res = await updateMailSettingsAction(settingsForm)
       if (res.success && res.settings) {
         setSettings(res.settings)
-        setSetupFeedback({ type: 'success', message: 'Mail setups & institutional branding saved!' })
+        setSettingsForm(res.settings)
+        setSetupFeedback({ type: 'success', message: 'Mail setups & institutional branding saved successfully!' })
       } else {
         setSetupFeedback({ type: 'error', message: res.error || 'Failed to save settings.' })
       }
@@ -153,6 +161,63 @@ export function AdminMailManager({
     } finally {
       setIsSavingSettings(false)
     }
+  }
+
+  // Handle Reset Settings to Institutional Defaults
+  const handleResetSettings = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to reset all mail setups to institutional defaults?\n\n' +
+      '• Institution Full Name: Gyan Vidya Mandir\n' +
+      '• Institution Short Name: GVM\n' +
+      '• Sender From Name: GVM\n' +
+      '• Official Logo: /gvm.png\n' +
+      '• Default Institutional Footer & Triggers'
+    )
+    if (!confirmed) return
+
+    setIsResettingSettings(true)
+    setSetupFeedback(null)
+
+    try {
+      const res = await resetMailSettingsAction()
+      if (res.success && res.settings) {
+        setSettings(res.settings)
+        setSettingsForm(res.settings)
+        setSetupFeedback({
+          type: 'success',
+          message: 'Mail setups reset to defaults: Full Name: Gyan Vidya Mandir, Short Name: GVM, Logo: /gvm.png',
+        })
+      } else {
+        setSetupFeedback({ type: 'error', message: res.error || 'Failed to reset settings.' })
+      }
+    } catch (err: any) {
+      setSetupFeedback({ type: 'error', message: err?.message || 'Error resetting mail settings.' })
+    } finally {
+      setIsResettingSettings(false)
+    }
+  }
+
+  // Handle Custom Logo Upload
+  const handleLogoFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (PNG, JPG, SVG, WebP).')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = uploadEvent => {
+      const result = uploadEvent.target?.result as string
+      if (result) {
+        setSettingsForm(prev => ({ ...prev, logo_url: result }))
+        setSetupFeedback({
+          type: 'success',
+          message: 'Logo loaded! Click "Save Mail Settings" below to save this logo permanently.',
+        })
+      }
+    }
+    reader.readAsDataURL(file)
   }
 
   // Handle Send Diagnostic Test
@@ -602,16 +667,28 @@ export function AdminMailManager({
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 text-xs font-mono bg-muted/60 px-3 py-1.5 rounded-lg border border-border text-foreground">
-                <Key className="w-3.5 h-3.5 text-primary" />
-                <span>API Key: re_XUxDt...LKz</span>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleResetSettings}
+                  disabled={isResettingSettings}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  title="Reset to official GVM defaults (Gyan Vidya Mandir, GVM, /gvm.png)"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${isResettingSettings ? 'animate-spin' : ''}`} />
+                  <span>Reset Defaults</span>
+                </button>
+                <div className="flex items-center gap-2 text-xs font-mono bg-muted/60 px-3 py-1.5 rounded-lg border border-border text-foreground">
+                  <Key className="w-3.5 h-3.5 text-primary" />
+                  <span>API Key: re_XUxDt...LKz</span>
+                </div>
               </div>
             </div>
           </div>
 
           {setupFeedback && (
             <div
-              className={`p-3 rounded-xl flex items-center gap-2 text-xs font-medium ${
+              className={`p-3.5 rounded-xl flex items-center gap-2 text-xs font-medium ${
                 setupFeedback.type === 'success'
                   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                   : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
@@ -627,7 +704,143 @@ export function AdminMailManager({
           )}
 
           <form onSubmit={handleSaveSettings} className="space-y-6">
-            {/* Sender Identity Card */}
+            {/* Card 1: Institutional Identity & Logo Card */}
+            <div className="rounded-2xl border border-border bg-card p-6 space-y-5 shadow-xs">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-bold text-foreground">Institution Identity & Logo</h3>
+                </div>
+                <span className="text-[11px] text-muted-foreground">Used across email headers, branding & automated notices</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1.5">
+                    Institution Full Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={settingsForm.institute_full_name || ''}
+                    onChange={e => setSettingsForm({ ...settingsForm, institute_full_name: e.target.value })}
+                    placeholder="e.g. Gyan Vidya Mandir"
+                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                  <span className="text-[11px] text-muted-foreground mt-1 block">
+                    Full official name (<strong>Gyan Vidya Mandir</strong>) displayed in primary headers and official notices.
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1.5">
+                    Institution Short Name (Acronym)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={settingsForm.institute_short_name || ''}
+                    onChange={e => setSettingsForm({ ...settingsForm, institute_short_name: e.target.value })}
+                    placeholder="e.g. GVM"
+                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary uppercase font-bold"
+                  />
+                  <span className="text-[11px] text-muted-foreground mt-1 block">
+                    Short acronym (<strong>GVM</strong>) used in compact badges, subject lines, and mobile notifications.
+                  </span>
+                </div>
+              </div>
+
+              {/* Logo Setup Section */}
+              <div className="pt-3 border-t border-border/70">
+                <label className="block text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-primary" />
+                  <span>Institutional Logo</span>
+                </label>
+
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 p-4 rounded-xl bg-muted/40 border border-border">
+                  {/* Visual Preview Box */}
+                  <div className="w-16 h-16 shrink-0 rounded-xl border border-border bg-background flex items-center justify-center p-1.5 overflow-hidden shadow-xs relative">
+                    {settingsForm.logo_url ? (
+                      <img
+                        src={settingsForm.logo_url}
+                        alt="Institution Logo"
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          ;(e.currentTarget as HTMLElement).style.display = 'none'
+                        }}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-primary/10 rounded-lg text-primary font-bold text-sm">
+                        {settingsForm.institute_short_name || 'GVM'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 min-w-0 space-y-2 w-full">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <input
+                        type="text"
+                        value={settingsForm.logo_url || ''}
+                        onChange={e => setSettingsForm({ ...settingsForm, logo_url: e.target.value })}
+                        placeholder="e.g. /gvm.png or https://your-domain.com/logo.png"
+                        className="flex-1 rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono"
+                      />
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setSettingsForm({ ...settingsForm, logo_url: '/gvm.png' })}
+                          className="px-2.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-foreground text-[11px] font-semibold transition-colors cursor-pointer"
+                          title="Use default /gvm.png crest"
+                        >
+                          Use /gvm.png
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => logoFileInputRef.current?.click()}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-semibold transition-colors cursor-pointer"
+                          title="Upload image file from device"
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>Upload</span>
+                        </button>
+
+                        {settingsForm.logo_url && (
+                          <button
+                            type="button"
+                            onClick={() => setSettingsForm({ ...settingsForm, logo_url: '' })}
+                            className="px-2 py-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-[11px] font-semibold transition-colors cursor-pointer"
+                            title="Remove logo"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={logoFileInputRef}
+                      onChange={handleLogoFileUpload}
+                      accept="image/*"
+                      className="hidden"
+                    />
+
+                    <p className="text-[11px] text-muted-foreground">
+                      PNG, JPG, WebP or SVG supported. Rendered in all dispatched email headers.
+                      {settingsForm.logo_url === '/gvm.png' && (
+                        <span className="ml-1.5 text-emerald-600 dark:text-emerald-400 font-semibold inline-flex items-center gap-1">
+                          ✓ Official GVM Crest Active (/gvm.png)
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 2: Sender Identity Card */}
             <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-xs">
               <div className="flex items-center gap-2 border-b border-border pb-3">
                 <ShieldCheck className="w-4 h-4 text-primary" />
@@ -636,36 +849,65 @@ export function AdminMailManager({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-foreground mb-1.5">
-                    Sender From Name
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-foreground">
+                      Sender From Name
+                    </label>
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <span className="text-muted-foreground">Quick set:</span>
+                      <button
+                        type="button"
+                        onClick={() => setSettingsForm({ ...settingsForm, sender_name: settingsForm.institute_short_name || 'GVM' })}
+                        className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground font-semibold border border-border cursor-pointer transition-colors"
+                      >
+                        {settingsForm.institute_short_name || 'GVM'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSettingsForm({ ...settingsForm, sender_name: settingsForm.institute_full_name || 'Gyan Vidya Mandir' })}
+                        className="px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground font-semibold border border-border cursor-pointer transition-colors"
+                      >
+                        Full Name
+                      </button>
+                    </div>
+                  </div>
                   <input
                     type="text"
                     required
                     value={settingsForm.sender_name}
                     onChange={e => setSettingsForm({ ...settingsForm, sender_name: e.target.value })}
-                    placeholder="e.g. GVM Educational Institute"
+                    placeholder="e.g. GVM or Gyan Vidya Mandir"
                     className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
                   <span className="text-[11px] text-muted-foreground mt-1 block">
-                    Displays as the friendly name in the recipient inbox.
+                    Displays as the friendly name in the recipient's inbox.
                   </span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-foreground mb-1.5">
-                    Sender From Email Address
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-foreground">
+                      Sender From Email Address
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSettingsForm({ ...settingsForm, sender_email: 'onboarding@resend.dev' })}
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-muted hover:bg-muted/80 text-foreground font-semibold border border-border cursor-pointer transition-colors"
+                      title="Use Resend testing domain (onboarding@resend.dev)"
+                    >
+                      Use onboarding@resend.dev
+                    </button>
+                  </div>
                   <input
                     type="text"
                     required
                     value={settingsForm.sender_email}
                     onChange={e => setSettingsForm({ ...settingsForm, sender_email: e.target.value })}
                     placeholder="e.g. onboarding@resend.dev or notifications@yourdomain.com"
-                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    className="w-full rounded-xl border border-border bg-background px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono"
                   />
                   <span className="text-[11px] text-muted-foreground mt-1 block">
-                    Verified sender email or Resend testing domain (onboarding@resend.dev).
+                    Use <strong>onboarding@resend.dev</strong> for testing, or your verified domain from <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="text-primary hover:underline">resend.com/domains</a>.
                   </span>
                 </div>
 
@@ -697,7 +939,7 @@ export function AdminMailManager({
               </div>
             </div>
 
-            {/* Institutional Email Branding */}
+            {/* Card 3: Institutional Email Branding */}
             <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-xs">
               <div className="flex items-center gap-2 border-b border-border pb-3">
                 <Globe className="w-4 h-4 text-primary" />
@@ -765,7 +1007,7 @@ export function AdminMailManager({
               </div>
             </div>
 
-            {/* Automated System Triggers Card */}
+            {/* Card 4: Automated System Triggers Card */}
             <div className="rounded-2xl border border-border bg-card p-6 space-y-4 shadow-xs">
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <div className="flex items-center gap-2">
@@ -847,12 +1089,23 @@ export function AdminMailManager({
               </div>
             </div>
 
-            {/* Save Button */}
-            <div className="flex justify-end">
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleResetSettings}
+                disabled={isResettingSettings}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                title="Reset all settings to official GVM defaults (Gyan Vidya Mandir, GVM, /gvm.png)"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isResettingSettings ? 'animate-spin' : ''}`} />
+                <span>{isResettingSettings ? 'Resetting Setup...' : 'Reset Mail Setup to Defaults'}</span>
+              </button>
+
               <button
                 type="submit"
                 disabled={isSavingSettings}
-                className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-sm transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 <Check className="w-4 h-4" />
                 <span>{isSavingSettings ? 'Saving Configuration...' : 'Save Mail Settings'}</span>

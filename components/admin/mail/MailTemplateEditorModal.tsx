@@ -38,7 +38,8 @@ const COMMON_TAGS = [
   { tag: '{{attendance_percentage}}', desc: 'Current Attendance %' },
   { tag: '{{minimum_required_percentage}}', desc: 'Mandatory Attendance %' },
   { tag: '{{teacher_name}}', desc: 'Teacher / Instructor Name' },
-  { tag: '{{institute_name}}', desc: 'Institute Institutional Name' },
+  { tag: '{{institute_name}}', desc: 'Institute Full Name (Gyan Vidya Mandir)' },
+  { tag: '{{institute_short_name}}', desc: 'Institute Short Name (GVM)' },
   { tag: '{{support_email}}', desc: 'Support Contact Email' },
   { tag: '{{portal_url}}', desc: 'Application Base URL' },
 ]
@@ -65,7 +66,8 @@ const SAMPLE_DATA: Record<string, string | number> = {
   announcement_summary: 'Comprehensive exam dates and hall ticket instructions are now published.',
   announcement_body: 'All students are requested to download their hall tickets and review the examination guidelines.',
   highlight_note: 'Note: Identity cards are mandatory for entering the exam hall.',
-  institute_name: 'GVM Educational Institute',
+  institute_name: 'Gyan Vidya Mandir',
+  institute_short_name: 'GVM',
   support_email: 'support@gvmedu.com',
   portal_url: 'https://gvm.edu.in',
 }
@@ -94,7 +96,7 @@ export function MailTemplateEditorModal({
 
   const [isSaving, setIsSaving] = useState(false)
   const [isSendingTest, setIsSendingTest] = useState(false)
-  const [testEmailInput, setTestEmailInput] = useState('')
+  const [testEmailInput, setTestEmailInput] = useState('shivamimps1@gmail.com')
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [copiedTag, setCopiedTag] = useState<string | null>(null)
 
@@ -571,7 +573,7 @@ export function MailTemplateEditorModal({
                   <div className="px-6 py-4 bg-zinc-900/40 border-b border-zinc-800/80 space-y-1 text-xs">
                     <div className="flex items-center gap-2 text-zinc-400">
                       <span className="font-semibold text-zinc-300">From:</span>
-                      <span className="text-zinc-200 font-medium">GVM Educational Institute &lt;notifications@gvmedu.com&gt;</span>
+                      <span className="text-zinc-200 font-medium">GVM (Gyan Vidya Mandir) &lt;onboarding@resend.dev&gt;</span>
                     </div>
                     <div className="flex items-center gap-2 text-zinc-400">
                       <span className="font-semibold text-zinc-300">To:</span>
@@ -592,9 +594,16 @@ export function MailTemplateEditorModal({
                   {/* Rendered HTML Container */}
                   <div className="p-6">
                     {/* Branded Card Header */}
-                    <div className="bg-gradient-to-r from-indigo-600 to-indigo-900 p-5 rounded-t-xl text-white">
-                      <h3 className="text-lg font-bold">GVM Educational Institute</h3>
-                      <p className="text-xs text-indigo-200">Learning & Institution Management System</p>
+                    <div className="bg-gradient-to-r from-indigo-600 to-indigo-950 p-5 rounded-t-xl text-white flex items-center gap-3.5">
+                      <img
+                        src="/gvm.png"
+                        alt="GVM Crest"
+                        className="w-10 h-10 object-contain rounded-lg bg-white/10 p-1 border border-white/15"
+                      />
+                      <div>
+                        <h3 className="text-base sm:text-lg font-bold leading-tight">Gyan Vidya Mandir</h3>
+                        <p className="text-xs text-indigo-200">GVM • Digital Learning & Institution Management</p>
+                      </div>
                     </div>
 
                     {/* Card Body */}
@@ -623,7 +632,7 @@ export function MailTemplateEditorModal({
                       )}
 
                       <div className="mt-8 pt-4 border-t border-zinc-800 text-[11px] text-zinc-500">
-                        © 2026 GVM Educational Institute. All rights reserved. 124 Knowledge Boulevard.
+                        © 2026 Gyan Vidya Mandir (GVM). All rights reserved. 124 Knowledge Boulevard.
                       </div>
                     </div>
                   </div>

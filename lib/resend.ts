@@ -10,7 +10,7 @@ const apiKey = process.env.RESEND_API_KEY
 export const resend = new Resend(apiKey || 're_placeholder_key')
 
 export const DEFAULT_FROM_EMAIL =
-  process.env.RESEND_FROM_EMAIL || 'GVM App <onboarding@resend.dev>'
+  process.env.RESEND_FROM_EMAIL || 'GVM <onboarding@resend.dev>'
 
 export interface SendEmailOptions {
   to: string | string[]
@@ -81,13 +81,34 @@ export async function sendEmail({
       ...(tags ? { tags } : {}),
     } as CreateEmailOptions
 
-    const { data, error } = await resend.emails.send(payload)
+    let finalFrom = from
+    let { data, error } = await resend.emails.send(payload)
+
+    // Smart fallback: if custom domain is not yet verified in Resend DNS, auto-retry with onboarding@resend.dev
+    if (error && error.message?.toLowerCase().includes('domain is not verified') && !finalFrom.includes('onboarding@resend.dev')) {
+      const senderNameMatch = finalFrom.match(/^([^<]+)<.+>$/)
+      const friendlyName = senderNameMatch ? senderNameMatch[1].trim() : 'GVM'
+      finalFrom = `${friendlyName} <onboarding@resend.dev>`
+
+      const fallbackResult = await resend.emails.send({
+        ...payload,
+        from: finalFrom,
+      })
+      data = fallbackResult.data
+      error = fallbackResult.error
+    }
 
     if (error) {
       console.error('[Resend SDK Error]:', error)
+      let customErrorMsg = error.message
+
+      if (error.message?.includes('You can only send testing emails to your own email address')) {
+        customErrorMsg = `${error.message} For instant test verification, please use 'shivamimps1@gmail.com' as recipient.`
+      }
+
       return {
         success: false,
-        error: error.message,
+        error: customErrorMsg,
       }
     }
 
@@ -107,8 +128,6 @@ export async function sendEmail({
 
 /**
  * Standard branded HTML email template for GVM App notifications
-/**
- * Standard branded HTML email template for GVM App notifications
  */
 export function createEmailTemplate({
   title,
@@ -116,11 +135,11 @@ export function createEmailTemplate({
   bodyContent,
   ctaText,
   ctaUrl,
-  footerText = '© GVM Educational Institute. All rights reserved.',
-  instituteName = 'GVM Educational Institute',
-  instituteSubtitle = 'Learning & Institution Management System',
+  footerText = '© 2026 Gyan Vidya Mandir (GVM). All rights reserved.',
+  instituteName = 'Gyan Vidya Mandir',
+  instituteSubtitle = 'GVM • Digital Learning & Institution Management',
   brandColor = '#4f46e5',
-  logoUrl,
+  logoUrl = '/gvm.png',
 }: {
   title: string
   previewText?: string
@@ -133,6 +152,13 @@ export function createEmailTemplate({
   brandColor?: string
   logoUrl?: string
 }): string {
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/$/, '')
+  const resolvedLogoUrl = logoUrl
+    ? (logoUrl.startsWith('http://') || logoUrl.startsWith('https://') || logoUrl.startsWith('data:'))
+      ? logoUrl
+      : `${appUrl}${logoUrl.startsWith('/') ? '' : '/'}${logoUrl}`
+    : ''
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -148,10 +174,20 @@ export function createEmailTemplate({
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:580px;background-color:#131b2e;border-radius:16px;border:1px solid #1e293b;overflow:hidden;box-shadow:0 10px 25px -5px rgba(0,0,0,0.5);">
           <!-- Header -->
           <tr>
-            <td style="background:linear-gradient(135deg, ${brandColor} 0%, #312e81 100%);padding:28px 32px;text-align:left;">
-              ${logoUrl ? `<img src="${logoUrl}" alt="${instituteName}" style="max-height:36px;margin-bottom:12px;display:block;" />` : ''}
-              <h1 style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">${instituteName}</h1>
-              <p style="margin:4px 0 0 0;font-size:13px;color:#e0e7ff;font-weight:500;">${instituteSubtitle}</p>
+            <td style="background:linear-gradient(135deg, ${brandColor} 0%, #1e1b4b 100%);padding:24px 28px;text-align:left;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;">
+                <tr>
+                  ${resolvedLogoUrl ? `
+                  <td style="width:48px;vertical-align:middle;padding-right:14px;">
+                    <img src="${resolvedLogoUrl}" alt="${instituteName}" style="max-height:44px;max-width:48px;object-fit:contain;display:block;border-radius:8px;background:rgba(255,255,255,0.1);padding:2px;" />
+                  </td>
+                  ` : ''}
+                  <td style="vertical-align:middle;">
+                    <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;line-height:1.2;">${instituteName}</h1>
+                    <p style="margin:3px 0 0 0;font-size:12px;color:#e0e7ff;font-weight:500;">${instituteSubtitle}</p>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           

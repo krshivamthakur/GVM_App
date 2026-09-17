@@ -34,12 +34,17 @@ export async function getMailSettingsAction(): Promise<{ success: boolean; setti
       return { success: true, settings: memorySettings, fromDb: false }
     }
 
+    const autoTriggers = typeof data.auto_triggers === 'object' && data.auto_triggers !== null
+      ? { ...DEFAULT_MAIL_SETTINGS.auto_triggers, ...data.auto_triggers }
+      : DEFAULT_MAIL_SETTINGS.auto_triggers
+
     const settings: MailSettings = {
       ...DEFAULT_MAIL_SETTINGS,
       ...data,
-      auto_triggers: typeof data.auto_triggers === 'object' && data.auto_triggers !== null
-        ? { ...DEFAULT_MAIL_SETTINGS.auto_triggers, ...data.auto_triggers }
-        : DEFAULT_MAIL_SETTINGS.auto_triggers,
+      institute_full_name: data.institute_full_name || autoTriggers.institute_full_name || 'Gyan Vidya Mandir',
+      institute_short_name: data.institute_short_name || autoTriggers.institute_short_name || 'GVM',
+      logo_url: data.logo_url !== undefined && data.logo_url !== null && data.logo_url !== '' ? data.logo_url : '/gvm.png',
+      auto_triggers: autoTriggers,
     }
     memorySettings = settings
     return { success: true, settings, fromDb: true }
@@ -63,6 +68,12 @@ export async function updateMailSettingsAction(
     }
     memorySettings = merged
 
+    const autoTriggers = {
+      ...(merged.auto_triggers || {}),
+      institute_full_name: merged.institute_full_name || 'Gyan Vidya Mandir',
+      institute_short_name: merged.institute_short_name || 'GVM',
+    }
+
     const supabase = await createClient()
     const { data, error } = await supabase
       .from('mail_settings')
@@ -78,8 +89,8 @@ export async function updateMailSettingsAction(
         support_phone: merged.support_phone,
         support_email: merged.support_email,
         brand_color: merged.brand_color,
-        logo_url: merged.logo_url || '',
-        auto_triggers: merged.auto_triggers,
+        logo_url: merged.logo_url !== undefined ? merged.logo_url : '/gvm.png',
+        auto_triggers: autoTriggers,
         resend_api_key_override: merged.resend_api_key_override || '',
         updated_at: new Date().toISOString(),
         updated_by: currentUser?.id || null,
@@ -96,6 +107,52 @@ export async function updateMailSettingsAction(
     return { success: true, settings: merged }
   } catch (err: any) {
     return { success: false, error: err?.message || 'Failed to update mail settings' }
+  }
+}
+
+/**
+ * Reset Mail Settings to Institutional Defaults (Gyan Vidya Mandir / GVM)
+ */
+export async function resetMailSettingsAction(): Promise<{ success: boolean; settings: MailSettings; error?: string }> {
+  try {
+    const currentUser = await getCurrentUser()
+    const freshDefaults: MailSettings = {
+      ...DEFAULT_MAIL_SETTINGS,
+      updated_at: new Date().toISOString(),
+    }
+    memorySettings = { ...freshDefaults }
+
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from('mail_settings')
+      .upsert({
+        id: 'default',
+        provider: freshDefaults.provider,
+        sender_name: freshDefaults.sender_name,
+        sender_email: freshDefaults.sender_email,
+        reply_to: freshDefaults.reply_to,
+        cc_emails: freshDefaults.cc_emails,
+        bcc_emails: freshDefaults.bcc_emails,
+        footer_text: freshDefaults.footer_text,
+        support_phone: freshDefaults.support_phone,
+        support_email: freshDefaults.support_email,
+        brand_color: freshDefaults.brand_color,
+        logo_url: freshDefaults.logo_url || '/gvm.png',
+        auto_triggers: freshDefaults.auto_triggers,
+        resend_api_key_override: '',
+        updated_at: new Date().toISOString(),
+        updated_by: currentUser?.id || null,
+      })
+
+    if (error) {
+      console.warn('[MailSettings Reset Warning]:', error.message)
+    }
+
+    revalidatePath('/admin/mail')
+    revalidatePath('/admin/settings')
+    return { success: true, settings: freshDefaults }
+  } catch (err: any) {
+    return { success: false, settings: memorySettings, error: err?.message || 'Failed to reset settings' }
   }
 }
 
@@ -295,7 +352,8 @@ export async function sendTestMailAction({
       announcement_summary: 'Comprehensive exam dates and hall ticket instructions are now published.',
       announcement_body: 'All students are requested to download their hall tickets and review the examination guidelines.',
       highlight_note: 'Note: Identity cards are mandatory for entering the exam hall.',
-      institute_name: settings.sender_name || 'GVM Educational Institute',
+      institute_name: settings.institute_full_name || 'Gyan Vidya Mandir',
+      institute_short_name: settings.institute_short_name || 'GVM',
       support_email: settings.support_email || 'support@gvmedu.com',
       portal_url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
     }
@@ -318,14 +376,15 @@ export async function sendTestMailAction({
       ctaText: rawCtaText,
       ctaUrl: finalCtaUrl,
       footerText: settings.footer_text,
-      instituteName: settings.sender_name,
+      instituteName: settings.institute_full_name || 'Gyan Vidya Mandir',
+      instituteSubtitle: `${settings.institute_short_name || 'GVM'} • Digital Learning & Institution Management`,
       brandColor: settings.brand_color,
-      logoUrl: settings.logo_url,
+      logoUrl: settings.logo_url || '/gvm.png',
     })
 
     const senderEmail = settings.sender_email.includes('<') 
       ? settings.sender_email 
-      : `${settings.sender_name} <${settings.sender_email}>`
+      : `${settings.sender_name || settings.institute_short_name || 'GVM'} <${settings.sender_email}>`
 
     const res = await sendEmail({
       to,
@@ -391,7 +450,8 @@ export async function sendTemplateEmailAction({
     }
 
     const mergedVariables: Record<string, string | number | boolean> = {
-      institute_name: settings.sender_name || 'GVM Educational Institute',
+      institute_name: settings.institute_full_name || 'Gyan Vidya Mandir',
+      institute_short_name: settings.institute_short_name || 'GVM',
       support_email: settings.support_email || 'support@gvmedu.com',
       portal_url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
       recipient_name: recipientName || 'Student',
@@ -410,14 +470,15 @@ export async function sendTemplateEmailAction({
       ctaText: template.cta_text,
       ctaUrl: ctaUrl || undefined,
       footerText: settings.footer_text,
-      instituteName: settings.sender_name,
+      instituteName: settings.institute_full_name || 'Gyan Vidya Mandir',
+      instituteSubtitle: `${settings.institute_short_name || 'GVM'} • Digital Learning & Institution Management`,
       brandColor: settings.brand_color,
-      logoUrl: settings.logo_url,
+      logoUrl: settings.logo_url || '/gvm.png',
     })
 
     const senderEmail = settings.sender_email.includes('<') 
       ? settings.sender_email 
-      : `${settings.sender_name} <${settings.sender_email}>`
+      : `${settings.sender_name || settings.institute_short_name || 'GVM'} <${settings.sender_email}>`
 
     const res = await sendEmail({
       to,

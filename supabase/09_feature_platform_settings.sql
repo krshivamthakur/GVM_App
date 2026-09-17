@@ -8,9 +8,9 @@
 CREATE TABLE IF NOT EXISTS public.platform_settings (
     id TEXT PRIMARY KEY DEFAULT 'global',
     settings JSONB NOT NULL DEFAULT '{
-        "platformName": "GVM Educational Institute",
-        "logoUrl": "",
-        "logoText": "GVM EduLMS",
+        "platformName": "Gyan Vidya Mandir (GVM)",
+        "logoUrl": "/gvm.png",
+        "logoText": "GVM",
         "supportEmail": "support@gvmedu.com",
         "defaultLanguage": "en",
         "allowRegistration": true,
@@ -42,13 +42,13 @@ CREATE POLICY "Public write on platform_settings" ON public.platform_settings FO
 -- 2. FEE RECEIPT INSTITUTIONAL HEADER SETTINGS TABLE
 CREATE TABLE IF NOT EXISTS public.fee_receipt_settings (
     id TEXT PRIMARY KEY DEFAULT 'default',
-    institute_name TEXT NOT NULL DEFAULT 'GVM Educational Institute',
+    institute_name TEXT NOT NULL DEFAULT 'Gyan Vidya Mandir',
     department_name TEXT DEFAULT 'Department of Student Accounts & Finance',
     reference_prefix TEXT DEFAULT 'GVM-FEE-2026',
     address_line TEXT DEFAULT '124 Knowledge Boulevard, Institutional Area, Tech City - 560001',
     contact_email TEXT DEFAULT 'accounts@gvmedu.com',
     contact_phone TEXT DEFAULT '+91 98765 43210',
-    logo_url TEXT,
+    logo_url TEXT DEFAULT '/gvm.png',
     authorized_signatory_title TEXT DEFAULT 'Accounts Comptroller / Authorized Registrar',
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
