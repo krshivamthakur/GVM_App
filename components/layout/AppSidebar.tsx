@@ -197,6 +197,7 @@ export function AppSidebar({ isCollapsed, onToggleCollapse, isMobile = false }: 
         <button
           type="button"
           onClick={logout}
+          data-nav-loading="true"
           title={isCollapsed ? 'Log out' : undefined}
           className={`group relative flex w-full items-center gap-3.5 px-4 py-2.5 rounded-xl text-sm font-medium text-muted-foreground hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all cursor-pointer ${
             isCollapsed ? 'justify-center px-2' : ''

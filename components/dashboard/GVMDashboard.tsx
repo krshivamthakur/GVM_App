@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import { Profile, Course } from '@/types/database'
 
-interface AacroSchoolDashboardProps {
+interface GVMDashboardProps {
   currentUser?: Profile | null
   stats?: {
     totalStudents: number
@@ -49,13 +49,13 @@ interface StudentRow {
   checked: boolean
 }
 
-export function AacroSchoolDashboard({
+export function GVMDashboard({
   currentUser,
   stats,
   initialStudents = [],
   initialCourses = [],
   initialTeachers = []
-}: AacroSchoolDashboardProps) {
+}: GVMDashboardProps) {
   // Calendar Segment Toggle ('Day to day' | 'Social Media')
   const [calendarMode, setCalendarMode] = useState<'day' | 'social'>('day')
 
@@ -199,7 +199,7 @@ export function AacroSchoolDashboard({
 
   return (
     <div className="w-full space-y-6 animate-in fade-in duration-300">
-      {/* 2-Column Responsive Grid matching Aacro design */}
+      {/* 2-Column Responsive Grid matching GVM design */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         
         {/* ============================================================ */}

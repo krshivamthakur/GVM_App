@@ -7,6 +7,8 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { PlatformSettingsProvider } from '@/contexts/PlatformSettingsContext'
 import { NotificationProvider } from '@/contexts/NotificationContext'
 
+import { PageLoader } from '@/components/navigation/PageLoader'
+
 const geistSans = Geist({
   variable: '--font-geist-sans',
   subsets: ['latin'],
@@ -38,6 +40,7 @@ export default function RootLayout({
           <PlatformSettingsProvider>
             <ThemeProvider>
               <NotificationProvider>
+                <PageLoader />
                 <Navbar />
                 <div className="flex-1 flex flex-col">{children}</div>
               </NotificationProvider>

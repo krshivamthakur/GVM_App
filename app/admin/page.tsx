@@ -4,7 +4,7 @@ export const revalidate = 0
 import { getAdminPlatformStats, getAllUsers } from '@/actions/admin-actions'
 import { getAllCoursesAdmin } from '@/actions/course-actions'
 import { getCurrentUser } from '@/actions/auth-actions'
-import { AacroSchoolDashboard } from '@/components/dashboard/AacroSchoolDashboard'
+import { GVMDashboard } from '@/components/dashboard/GVMDashboard'
 
 export default async function AdminDashboardPage() {
   const [stats, currentUser, students, teachers, courses] = await Promise.all([
@@ -17,7 +17,7 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="w-full">
-      <AacroSchoolDashboard
+      <GVMDashboard
         currentUser={currentUser}
         stats={stats}
         initialStudents={students}

@@ -276,6 +276,7 @@ export function Navbar() {
             <button
               type="button"
               onClick={logout}
+              data-nav-loading="true"
               title="Sign Out"
               aria-label="Sign Out"
               className="p-2 text-zinc-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
